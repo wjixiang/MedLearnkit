@@ -1,0 +1,74 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Quiz {
+  id           String        @id
+  type         String
+  class        String
+  unit         String
+  question     String
+  answer       String
+  source       String?
+  extractedYear Int?
+  processedAt  DateTime?
+  createdAt    DateTime      @default(now())
+
+  options   QuizOption[]
+  analysis  QuizAnalysis?
+  tags     QuizTag[]
+  quizSets QuizSetQuiz[]
+}
+
+model QuizOption {
+  id     String @id @default(cuid())
+  quizId String
+  oid    String
+  text   String
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAnalysis {
+  id      String @id @default(cuid())
+  quizId  String @unique
+  point   String
+  discuss String
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizTag {
+  id        String   @id @default(cuid())
+  quizId    String
+  userId    String
+  value     String
+  type      String   // "public" or "private"
+  createdAt DateTime
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizSet {
+  id        String   @id @default(cuid())
+  title     String
+  createdAt DateTime @default(now())
+
+  quizzes QuizSetQuiz[]
+}
+
+model QuizSetQuiz {
+  id        String @id @default(cuid())
+  quizSetId String
+  quizId    String
+
+  quizSet QuizSet @relation(fields: [quizSetId], references: [id], onDelete: Cascade)
+  quiz    Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@unique([quizSetId, quizId])
+}
