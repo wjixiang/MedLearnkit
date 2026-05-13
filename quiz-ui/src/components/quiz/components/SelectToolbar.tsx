@@ -1,12 +1,19 @@
 import { Trash2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { QuizPractice } from "@/lib/types";
+import { AdvancedSelectMenu } from "./AdvancedSelectMenu";
 
 interface SelectToolbarProps {
   selectedCount: number;
   maxSelect: number;
   onGeneratePaper: () => void;
   onClearAll: () => void;
+  quizList: QuizPractice[];
+  selectedIds: Set<string>;
+  onSelectAll: () => void;
+  onSelectFirstN: (n: number) => void;
+  onSelectRandomN: (n: number) => void;
 }
 
 export function SelectToolbar({
@@ -14,6 +21,11 @@ export function SelectToolbar({
   maxSelect,
   onGeneratePaper,
   onClearAll,
+  quizList,
+  selectedIds,
+  onSelectAll,
+  onSelectFirstN,
+  onSelectRandomN,
 }: SelectToolbarProps) {
   const isAtLimit = selectedCount >= maxSelect;
 
@@ -30,6 +42,15 @@ export function SelectToolbar({
         </div>
 
         <div className="flex items-center gap-2">
+          <AdvancedSelectMenu
+            quizList={quizList}
+            selectedIds={selectedIds}
+            maxSelect={maxSelect}
+            onSelectAll={onSelectAll}
+            onSelectFirstN={onSelectFirstN}
+            onSelectRandomN={onSelectRandomN}
+            disabled={selectedCount >= maxSelect}
+          />
           <Button
             variant="outline"
             size="sm"

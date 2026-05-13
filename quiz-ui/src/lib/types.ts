@@ -99,3 +99,32 @@ export interface QuizPaper {
   quiz_ids: string[];
   created_at: string;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  username: string | null;
+  avatar_url: string | null;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  username?: string;
+}
+
+export interface UpdateProfileRequest {
+  username?: string;
+  avatar_url?: string;
+}

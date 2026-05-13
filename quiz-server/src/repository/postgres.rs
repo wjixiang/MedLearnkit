@@ -445,7 +445,8 @@ fn row_to_quiz_with_details(row: &sqlx::postgres::PgRow) -> QuizWithDetails {
                 }
             }
 
-            (flat_options, Some(map), None)
+            let subs = extract_sub_questions(&questions_json);
+            (flat_options, Some(map), Some(subs))
         }
         "B" => {
             let flat_options = extract_flat_options(&options_json, &quiz_id);

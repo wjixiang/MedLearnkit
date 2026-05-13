@@ -12,8 +12,9 @@ export function useQuizLogic({
   currentQuizIndex,
   thisQuizIndex,
 }: UseQuizLogicProps) {
-  const [selected, setSelected] = useState<Oid | undefined>(
-    quiz.userAnswer as Oid | undefined,
+  const isXType = quiz.type === "X";
+  const [selected, setSelected] = useState<Oid[]>(
+    isXType ? [] : (quiz.userAnswer ? [quiz.userAnswer as Oid] : []),
   );
   const [submitted, setSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -24,6 +25,8 @@ export function useQuizLogic({
   const shuffledOptionsRef = useRef<QuizOption[] | null>(null);
 
   const isBType = quiz.type === "B" && (quiz.sub_questions?.length ?? 0) > 0;
+  const isA3Type = quiz.type === "A3" && (quiz.sub_questions?.length ?? 0) > 0;
+  const isMultiSub = isBType || isA3Type;
   const subQuestions = quiz.sub_questions ?? [];
 
   const getShuffledOptions = useCallback(
@@ -41,22 +44,27 @@ export function useQuizLogic({
   const isActive = currentQuizIndex === thisQuizIndex;
 
   const handleOptionSelect = useCallback(
-    (oid: Oid) => {
+    (oid: Oid, questionId?: number) => {
       if (submitted || !isActive) return;
-      if (isBType) {
-        setSubAnswers((prev) => ({ ...prev, [currentSubIndex]: oid }));
+      if (isMultiSub) {
+        const qId = questionId ?? currentSubIndex;
+        setSubAnswers((prev) => ({ ...prev, [qId]: oid }));
+      } else if (isXType) {
+        setSelected((prev) =>
+          prev.includes(oid) ? prev.filter((o) => o !== oid) : [...prev, oid]
+        );
       } else {
-        setSelected(oid);
+        setSelected([oid]);
       }
     },
-    [submitted, isActive, isBType, currentSubIndex],
+    [submitted, isActive, isMultiSub, isXType, currentSubIndex],
   );
 
   const handleSubmit = useCallback(
     (_isDifficult?: boolean) => {
       if (submitted || !isActive) return;
 
-      if (isBType) {
+      if (isMultiSub) {
         const answeredCount = Object.keys(subAnswers).length;
         if (answeredCount < subQuestions.length) return;
         const correct = subQuestions.every(
@@ -64,37 +72,50 @@ export function useQuizLogic({
         );
         setIsCorrect(correct);
         setSubmitted(true);
+      } else if (isXType) {
+        if (selected.length === 0) return;
+        const answerStr = quiz.answer || "";
+        const answerArray = answerStr.split("").filter(Boolean) as Oid[];
+        const sortedSelected = [...selected].sort();
+        const sortedAnswer = [...answerArray].sort();
+        const correct =
+          sortedSelected.length === sortedAnswer.length &&
+          sortedSelected.every((v, i) => v === sortedAnswer[i]);
+        setIsCorrect(correct);
+        setSubmitted(true);
       } else {
-        if (!selected) return;
-        const correct = selected === quiz.answer;
+        if (selected.length === 0) return;
+        const correct = selected[0] === quiz.answer;
         setIsCorrect(correct);
         setSubmitted(true);
       }
     },
-    [submitted, isActive, isBType, subAnswers, subQuestions, selected, quiz.answer],
+    [submitted, isActive, isMultiSub, isXType, subAnswers, subQuestions, selected, quiz.answer],
   );
 
-  const canSubmit = isBType
+  const canSubmit = isMultiSub
     ? Object.keys(subAnswers).length >= subQuestions.length
-    : !!selected;
+    : isXType
+      ? selected.length > 0
+      : selected.length > 0;
 
   const getCurrentState = useCallback(() => {
     return {
       submitted,
       isCorrect,
-      selectedOption: selected,
+      selectedOption: isXType ? selected : selected[0],
       subAnswers,
     };
-  }, [submitted, isCorrect, selected, subAnswers]);
+  }, [submitted, isCorrect, selected, isXType, subAnswers]);
 
   const reset = useCallback(() => {
-    setSelected(undefined);
+    setSelected(isXType ? [] : []);
     setSubmitted(false);
     setIsCorrect(false);
     setSubAnswers({});
     setCurrentSubIndex(0);
     shuffledOptionsRef.current = null;
-  }, []);
+  }, [isXType]);
 
   return {
     selected,
@@ -105,6 +126,9 @@ export function useQuizLogic({
     setCurrentSubIndex,
     canSubmit,
     isBType,
+    isA3Type,
+    isXType,
+    isMultiSub,
     subQuestions,
     getShuffledOptions,
     handleOptionSelect,

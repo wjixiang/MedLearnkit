@@ -7,6 +7,7 @@ interface AnswerSectionProps {
   submitted: boolean;
   isCorrect: boolean;
   subAnswers?: Record<number, Oid>;
+  userAnswer?: Oid;
 }
 
 function getOptionText(
@@ -23,6 +24,7 @@ export function AnswerSection({
   submitted,
   isCorrect,
   subAnswers,
+  userAnswer,
 }: AnswerSectionProps) {
   if (!submitted) return null;
 
@@ -63,8 +65,65 @@ export function AnswerSection({
     );
   }
 
-  const userAnswer = quiz.userAnswer;
-  const userAnswerText = getOptionText(userAnswer ?? null, quiz.options);
+  const effectiveUserAnswer = userAnswer ?? quiz.userAnswer;
+
+  // X型题特殊处理：答案是多选
+  if (quiz.type === "X") {
+    const userAnswers = Array.isArray(effectiveUserAnswer)
+      ? effectiveUserAnswer
+      : effectiveUserAnswer
+        ? [effectiveUserAnswer]
+        : [];
+    const correctAnswers = (quiz.answer || "").split("").filter(Boolean);
+
+    const userAnswerText = userAnswers.length > 0
+      ? userAnswers.map((oid) => getOptionText(oid, quiz.options)).join("、")
+      : "未作答";
+    const correctAnswerText = correctAnswers.length > 0
+      ? correctAnswers.map((oid) => getOptionText(oid, quiz.options)).join("、")
+      : "未作答";
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-card text-card-foreground p-4 rounded-lg border space-y-4">
+          <h3 className="text-lg font-semibold">答案</h3>
+
+          <div className="space-y-2 ml-2">
+            <div className="flex items-center p-2 rounded bg-green-50 dark:bg-green-950/50">
+              <span className="font-medium mr-2">正确答案：</span>
+              <span>{correctAnswerText}</span>
+            </div>
+            <div
+              className={`flex items-center p-2 rounded ${
+                isCorrect
+                  ? "bg-green-100 dark:bg-green-900/50"
+                  : "bg-red-100 dark:bg-red-900/50"
+              }`}
+            >
+              <span className="font-medium mr-2">你的答案：</span>
+              <span>{userAnswerText}</span>
+              {isCorrect ? (
+                <Check
+                  size={16}
+                  className="ml-auto text-green-600 dark:text-green-400"
+                />
+              ) : (
+                <X
+                  size={16}
+                  className="ml-auto text-red-600 dark:text-red-400"
+                />
+              )}
+            </div>
+          </div>
+
+          <QuizAnalysis analysis={quiz.analysis} />
+        </div>
+      </div>
+    );
+  }
+
+  // 普通题型
+  const userAnswerText = getOptionText(effectiveUserAnswer ?? null, quiz.options);
   const correctAnswerText = getOptionText(quiz.answer, quiz.options);
 
   return (

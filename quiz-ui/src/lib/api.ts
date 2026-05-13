@@ -5,14 +5,49 @@ import type {
   QuizFilterMeta,
   PaginatedResponse,
   QuizPaper,
+  AuthResponse,
+  LoginRequest,
+  RegisterRequest,
+  User,
+  UpdateProfileRequest,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://192.168.123.98:8888";
 
+const TOKEN_KEY = "auth_token";
+const USER_KEY = "auth_user";
+
+function getStoredToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+function setStoredAuth(token: string, user: User): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+function clearStoredAuth(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export function getStoredUser(): User | null {
+  const userStr = localStorage.getItem(USER_KEY);
+  if (!userStr) return null;
+  try {
+    return JSON.parse(userStr);
+  } catch {
+    return null;
+  }
+}
+
 async function fetchApi<T>(
   endpoint: string,
-  params?: Record<string, string | number | undefined>,
+  options?: RequestInit & {
+    params?: Record<string, string | number | undefined>;
+  },
 ): Promise<T> {
+  const { params, ...fetchOptions } = options || {};
   const url = new URL(`${API_BASE}${endpoint}`, window.location.origin);
 
   if (params) {
@@ -23,10 +58,27 @@ async function fetchApi<T>(
     });
   }
 
-  const response = await fetch(url.toString());
+  const headers: HeadersInit = {
+    ...fetchOptions.headers,
+  };
+
+  const token = getStoredToken();
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url.toString(), {
+    ...fetchOptions,
+    headers,
+  });
 
   if (!response.ok) {
-    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    const error = await response.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(error.error || `API Error: ${response.status}`);
+  }
+
+  if (response.status === 204) {
+    return {} as T;
   }
 
   return response.json();
@@ -34,10 +86,9 @@ async function fetchApi<T>(
 
 export const quizApi = {
   getQuizzes: (filter?: QuizFilter) => {
-    return fetchApi<PaginatedResponse<Quiz>>(
-      "/api/quizzes",
-      filter as Record<string, string | number | undefined>,
-    );
+    return fetchApi<PaginatedResponse<Quiz>>("/api/quizzes", {
+      params: filter as Record<string, string | number | undefined>,
+    });
   },
 
   getQuizById: (id: string) => {
@@ -46,9 +97,8 @@ export const quizApi = {
 
   getRandomQuizzes: (filter?: QuizFilter, limit = 10) => {
     return fetchApi<Quiz[]>("/api/quizzes/random", {
-      ...filter,
-      limit,
-    } as Record<string, string | number | undefined>);
+      params: { ...filter, limit } as Record<string, string | number | undefined>,
+    });
   },
 
   getFilterMeta: () => {
@@ -56,25 +106,20 @@ export const quizApi = {
   },
 
   searchQuizzes: (filter?: QuizFilter) => {
-    return fetchApi<PaginatedResponse<Quiz>>(
-      "/api/quizzes/search",
-      filter as Record<string, string | number | undefined>,
-    );
+    return fetchApi<PaginatedResponse<Quiz>>("/api/quizzes/search", {
+      params: filter as Record<string, string | number | undefined>,
+    });
   },
 
   getTags: (search?: string, limit = 10) => {
-    return fetchApi<string[]>("/api/tags", { q: search, limit });
+    return fetchApi<string[]>("/api/tags", { params: { q: search, limit } });
   },
 
   getQuizTags: (quizId: string) => {
     return fetchApi<QuizWithDetails["tags"]>(`/api/quizzes/${quizId}/tags`);
   },
 
-  async addTag(
-    quizId: string,
-    value: string,
-    tagType: "public" | "private" = "private",
-  ) {
+  async addTag(quizId: string, value: string, tagType: "public" | "private" = "private") {
     const r = await fetch(`${API_BASE}/api/quizzes/${quizId}/tags`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -93,8 +138,9 @@ export const quizApi = {
   createPaper: (title: string, quizIds: string[]) => {
     return fetchApi<QuizPaper>("/api/papers", {
       method: "POST",
+      params: {},
       body: JSON.stringify({ title, quiz_ids: quizIds }),
-    } as Record<string, string | number | undefined>);
+    });
   },
 
   getPapers: () => {
@@ -108,5 +154,64 @@ export const quizApi = {
   deletePaper: (id: string) => {
     const r = fetch(`${API_BASE}/api/papers/${id}`, { method: "DELETE" });
     return r;
+  },
+};
+
+export const authApi = {
+  async login(credentials: LoginRequest): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Login failed" }));
+      throw new Error(error.error || "Login failed");
+    }
+
+    const data: AuthResponse = await response.json();
+    setStoredAuth(data.token, data.user);
+    return data;
+  },
+
+  async register(data: RegisterRequest): Promise<AuthResponse> {
+    const response = await fetch(`${API_BASE}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Registration failed" }));
+      throw new Error(error.error || "Registration failed");
+    }
+
+    const result: AuthResponse = await response.json();
+    setStoredAuth(result.token, result.user);
+    return result;
+  },
+
+  async getProfile(): Promise<User> {
+    return fetchApi<User>("/api/user/profile");
+  },
+
+  async updateProfile(data: UpdateProfileRequest): Promise<User> {
+    return fetchApi<User>("/api/user/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  },
+
+  logout(): void {
+    clearStoredAuth();
+  },
+
+  getToken(): string | null {
+    return getStoredToken();
+  },
+
+  isAuthenticated(): boolean {
+    return !!getStoredToken();
   },
 };

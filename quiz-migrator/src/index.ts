@@ -1,6 +1,5 @@
 import { MongoClient, ObjectId } from "mongodb";
-import { PrismaClient } from "@prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { Client } from "pg";
 
 const MONGODB_URI = "mongodb://127.0.0.1:27017";
 const DATABASE_NAME = "quizbank";
@@ -8,6 +7,14 @@ const DATABASE_NAME = "quizbank";
 interface QuizOption {
   oid: string;
   text: string;
+}
+
+interface SubQuiz {
+  subQuizId: number;
+  question: string;
+  options: QuizOption[];
+  answer: string;
+  _id: ObjectId;
 }
 
 interface QuizAnalysis {
@@ -23,8 +30,10 @@ interface QuizDocument {
   class: string;
   unit: string;
   tags: string[];
-  question: string;
-  options: QuizOption[];
+  mainQuestion?: string;
+  subQuizs?: SubQuiz[];
+  question?: string;
+  options?: QuizOption[];
   answer: string;
   analysis?: QuizAnalysis;
   source: string;
@@ -32,26 +41,10 @@ interface QuizDocument {
   processedAt: Date;
   embedding?: number[];
   __v: number;
-}
-
-interface QuizSetDocument {
-  _id: ObjectId;
-  title: string;
-  quizzes: Array<{
-    quiz: QuizDocument;
-  }>;
-}
-
-interface QuizTagDocument {
-  _id: ObjectId;
-  quizId: string;
-  userId: string;
-  tags: Array<{
-    value: string;
-    type: string;
-    createdAt: Date;
-    userId: string;
-    quizId: string;
+  questions?: Array<{
+    questionId: number;
+    questionText: string;
+    answer: string;
   }>;
 }
 
@@ -61,28 +54,22 @@ async function main() {
   await mongoClient.connect();
   const db = mongoClient.db(DATABASE_NAME);
 
-  console.log("Connecting to Prisma (SQLite)...");
-  const adapter = new PrismaBetterSqlite3({ url: "file:./data/quiz.db" });
-  const prisma = new PrismaClient({ adapter });
+  console.log("Connecting to PostgreSQL...");
+  const pgClient = new Client({
+    connectionString: "postgres://admin:fl5ox03@localhost:5430/medquiz",
+  });
+  await pgClient.connect();
 
-  console.log("Running Prisma migrations...");
-  // Note: For initial setup, use `npx prisma db push` instead of migrate
-  // await prisma.$executeRaw`CREATE TABLE IF NOT EXISTS _prisma_migrations...`;
-
-  console.log("Clearing existing data...");
-  await prisma.quizSetQuiz.deleteMany();
-  await prisma.quizTag.deleteMany();
-  await prisma.quizAnalysis.deleteMany();
-  await prisma.quizOption.deleteMany();
-  await prisma.quiz.deleteMany();
-  await prisma.quizSet.deleteMany();
+  console.log("Clearing existing Quiz data from PostgreSQL...");
+  await pgClient.query('DELETE FROM "QuizTag"');
+  await pgClient.query('DELETE FROM "Quiz"');
 
   console.log("Migrating quizzes...");
   const quizCollection = db.collection<QuizDocument>("quiz");
   const quizCount = await quizCollection.countDocuments();
   console.log(`Found ${quizCount} quizzes to migrate`);
 
-  const batchSize = 100;
+  const batchSize = 500;
   let migrated = 0;
 
   const cursor = quizCollection.find({});
@@ -95,7 +82,7 @@ async function main() {
     }
 
     if (batch.length >= batchSize) {
-      await migrateBatch(prisma, batch);
+      await migrateBatch(pgClient, batch);
       migrated += batch.length;
       console.log(`Migrated ${migrated}/${quizCount} quizzes`);
       batch = [];
@@ -103,192 +90,158 @@ async function main() {
   }
 
   if (batch.length > 0) {
-    await migrateBatch(prisma, batch);
+    await migrateBatch(pgClient, batch);
     migrated += batch.length;
     console.log(`Migrated ${migrated}/${quizCount} quizzes`);
-  }
-
-  console.log("Migrating quiz sets...");
-  const quizSetCollection = db.collection<QuizSetDocument>("quizSets");
-  const quizSetCount = await quizSetCollection.countDocuments();
-  console.log(`Found ${quizSetCount} quiz sets to migrate`);
-
-  const quizSetCursor = quizSetCollection.find({});
-  let quizSetBatch: QuizSetDocument[] = [];
-
-  while (await quizSetCursor.hasNext()) {
-    const doc = await quizSetCursor.next();
-    if (doc) {
-      quizSetBatch.push(doc);
-    }
-
-    if (quizSetBatch.length >= batchSize) {
-      await migrateQuizSetBatch(prisma, quizSetBatch);
-      console.log(`Migrated quiz sets...`);
-      quizSetBatch = [];
-    }
-  }
-
-  if (quizSetBatch.length > 0) {
-    await migrateQuizSetBatch(prisma, quizSetBatch);
-  }
-
-  console.log("Migrating quiz tags...");
-  const quizTagCollection = db.collection<QuizTagDocument>("quiztags");
-  const tagCount = await quizTagCollection.countDocuments();
-  console.log(`Found ${tagCount} tag entries to migrate`);
-
-  const tagCursor = quizTagCollection.find({});
-  let tagBatch: QuizTagDocument[] = [];
-
-  while (await tagCursor.hasNext()) {
-    const doc = await tagCursor.next();
-    if (doc) {
-      tagBatch.push(doc);
-    }
-
-    if (tagBatch.length >= batchSize) {
-      await migrateTagBatch(prisma, tagBatch);
-      console.log(`Migrated tags...`);
-      tagBatch = [];
-    }
-  }
-
-  if (tagBatch.length > 0) {
-    await migrateTagBatch(prisma, tagBatch);
   }
 
   console.log("Migration complete!");
 
   await mongoClient.close();
-  await prisma.$disconnect();
+  await pgClient.end();
 }
 
-async function migrateBatch(prisma: PrismaClient, batch: QuizDocument[]) {
+async function migrateBatch(pgClient: Client, batch: QuizDocument[]) {
+  const values: any[] = [];
+  const placeholders: string[] = [];
+  let paramIndex = 1;
+
   for (const quiz of batch) {
-    try {
-      await prisma.quiz.create({
-        data: {
-          id: quiz._id.toString(),
-          type: quiz.type,
-          class: quiz.class,
-          unit: quiz.unit,
-          question: quiz.question,
-          answer: quiz.answer,
-          source: quiz.source,
-          extractedYear: quiz.extractedYear,
-          processedAt: quiz.processedAt,
-          options: {
-            create: quiz.options.map((opt) => ({
-              oid: opt.oid,
-              text: opt.text,
-            })),
-          },
-          analysis: quiz.analysis
-            ? {
-                create: {
-                  point: quiz.analysis.point,
-                  discuss: quiz.analysis.discuss,
-                },
-              }
-            : undefined,
-        },
-      });
-    } catch (error) {
-      console.error(`Failed to migrate quiz ${quiz._id}:`, error);
-    }
-  }
-}
+    const { quizId, quizType, mainQuestion, questionText, optionsJson, questionsJson, answer, analysisPoint, analysisDiscuss } = transformQuiz(quiz);
 
-async function upsertQuiz(prisma: PrismaClient, quiz: QuizDocument) {
-  const existing = await prisma.quiz.findUnique({
-    where: { id: quiz._id.toString() },
-  });
+    placeholders.push(
+      `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12}, $${paramIndex + 13}, $${paramIndex + 14})`
+    );
 
-  if (existing) {
-    return; // Already migrated
+    values.push(
+      quizId,
+      quizType,
+      quiz.class,
+      quiz.unit,
+      questionText,
+      mainQuestion,
+      answer,
+      quiz.source,
+      quiz.extractedYear,
+      quiz.processedAt,
+      new Date(),
+      optionsJson,
+      questionsJson,
+      analysisPoint,
+      analysisDiscuss
+    );
+
+    paramIndex += 15;
   }
 
-  await prisma.quiz.create({
-    data: {
-      id: quiz._id.toString(),
-      type: quiz.type,
-      class: quiz.class,
-      unit: quiz.unit,
-      question: quiz.question,
-      answer: quiz.answer,
-      source: quiz.source,
-      extractedYear: quiz.extractedYear,
-      processedAt: quiz.processedAt,
-      options: {
-        create: quiz.options.map((opt) => ({
-          oid: opt.oid,
-          text: opt.text,
-        })),
-      },
-      analysis: quiz.analysis
-        ? {
-            create: {
-              point: quiz.analysis.point,
-              discuss: quiz.analysis.discuss,
-              links: JSON.stringify(quiz.analysis.link),
-            },
-          }
-        : undefined,
-    },
-  });
-}
+  const query = `INSERT INTO "Quiz" (
+    id, type, class, unit, question, "mainQuestion", answer, source,
+    "extractedYear", "processedAt", "createdAt", options, questions,
+    "analysis_point", "analysis_discuss"
+  ) VALUES ${placeholders.join(", ")}`;
 
-async function migrateQuizSetBatch(
-  prisma: PrismaClient,
-  batch: QuizSetDocument[]
-) {
-  for (const quizSet of batch) {
-    try {
-      // First, ensure all embedded quizzes exist (upsert)
-      for (const q of quizSet.quizzes) {
-        try {
-          await upsertQuiz(prisma, q.quiz);
-        } catch (e) {
-          // Quiz might already exist or have issues, continue
-        }
+  try {
+    await pgClient.query(query, values);
+  } catch (error) {
+    console.error("Batch insert failed, falling back to individual inserts...");
+    for (const quiz of batch) {
+      try {
+        await migrateQuizIndividual(pgClient, quiz);
+      } catch (e) {
+        console.error(`Failed to migrate quiz ${quiz._id}:`, e);
       }
-
-      // Then create the quiz set with junction entries
-      const created = await prisma.quizSet.create({
-        data: {
-          title: quizSet.title,
-          quizzes: {
-            create: quizSet.quizzes.map((q) => ({
-              quizId: q.quiz._id.toString(),
-            })),
-          },
-        },
-      });
-    } catch (error) {
-      console.error(`Failed to migrate quiz set ${quizSet._id}:`, error);
     }
   }
 }
 
-async function migrateTagBatch(prisma: PrismaClient, batch: QuizTagDocument[]) {
-  for (const tagEntry of batch) {
-    try {
-      for (const tag of tagEntry.tags) {
-        await prisma.quizTag.create({
-          data: {
-            quizId: tagEntry.quizId,
-            userId: tagEntry.userId,
-            value: tag.value,
-            type: tag.type,
-            createdAt: new Date(tag.createdAt),
-          },
+function transformQuiz(quiz: QuizDocument) {
+  const quizId = quiz._id.toString();
+  const quizType = quiz.type;
+
+  let mainQuestion: string | null = null;
+  let questionText: string | null = null;
+  let optionsJson: string | null = null;
+  let questionsJson: string | null = null;
+  let answer: string = quiz.answer;
+
+  if (quizType === "A3") {
+    mainQuestion = quiz.mainQuestion || null;
+    questionText = null;
+
+    if (quiz.subQuizs && quiz.subQuizs.length > 0) {
+      const optionsMap: Record<string, QuizOption[]> = {};
+      const subQuestions: Array<{ questionId: number; questionText: string; answer: string }> = [];
+
+      for (const subQuiz of quiz.subQuizs) {
+        optionsMap[subQuiz.subQuizId.toString()] = subQuiz.options;
+        subQuestions.push({
+          questionId: subQuiz.subQuizId,
+          questionText: subQuiz.question,
+          answer: subQuiz.answer,
         });
       }
-    } catch (error) {
-      console.error(`Failed to migrate tag entry ${tagEntry._id}:`, error);
+
+      optionsJson = JSON.stringify(optionsMap);
+      questionsJson = JSON.stringify(subQuestions);
     }
+    answer = "";
+  } else if (quizType === "B") {
+    mainQuestion = null;
+    questionText = null;
+
+    if (quiz.questions && quiz.questions.length > 0) {
+      const subQuestions = quiz.questions.map(q => ({
+        questionId: q.questionId,
+        questionText: q.questionText,
+        answer: q.answer,
+      }));
+      questionsJson = JSON.stringify(subQuestions);
+    }
+
+    if (quiz.options) {
+      optionsJson = JSON.stringify(quiz.options);
+    }
+    answer = "";
+  } else {
+    questionText = quiz.question || null;
+    mainQuestion = null;
+    optionsJson = quiz.options ? JSON.stringify(quiz.options) : null;
+    questionsJson = null;
   }
+
+  const analysisPoint = quiz.analysis?.point || "";
+  const analysisDiscuss = quiz.analysis?.discuss || "";
+
+  return { quizId, quizType, mainQuestion, questionText, optionsJson, questionsJson, answer, analysisPoint, analysisDiscuss };
+}
+
+async function migrateQuizIndividual(pgClient: Client, quiz: QuizDocument) {
+  const { quizId, quizType, mainQuestion, questionText, optionsJson, questionsJson, answer, analysisPoint, analysisDiscuss } = transformQuiz(quiz);
+
+  await pgClient.query(
+    `INSERT INTO "Quiz" (
+      id, type, class, unit, question, "mainQuestion", answer, source,
+      "extractedYear", "processedAt", "createdAt", options, questions,
+      "analysis_point", "analysis_discuss"
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+    [
+      quizId,
+      quizType,
+      quiz.class,
+      quiz.unit,
+      questionText,
+      mainQuestion,
+      answer,
+      quiz.source,
+      quiz.extractedYear,
+      quiz.processedAt,
+      new Date(),
+      optionsJson,
+      questionsJson,
+      analysisPoint,
+      analysisDiscuss,
+    ]
+  );
 }
 
 main().catch((error) => {
