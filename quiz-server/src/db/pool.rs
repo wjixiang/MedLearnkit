@@ -1,9 +1,10 @@
-use r2d2::Pool;
-use r2d2_sqlite::SqliteConnectionManager;
+use sqlx::postgres::PgPoolOptions;
 
-pub type DbPool = Pool<SqliteConnectionManager>;
+pub type PgPool = sqlx::PgPool;
 
-pub fn create_pool(database_path: &str) -> Result<DbPool, r2d2::Error> {
-    let manager = SqliteConnectionManager::file(database_path);
-    Pool::builder().max_size(10).build(manager)
+pub async fn create_postgres_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    PgPoolOptions::new()
+        .max_connections(10)
+        .connect(database_url)
+        .await
 }

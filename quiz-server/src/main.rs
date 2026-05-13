@@ -1,34 +1,69 @@
+mod auth;
 mod config;
 mod db;
 mod error;
 mod handlers;
+mod repository;
 mod services;
+mod state;
+
+use std::sync::Arc;
 
 use axum::{
-    routing::{get, post, delete},
+    handler::Handler,
+    middleware,
+    routing::{delete, get, post, put},
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
-use tracing_subscriber;
 
+use crate::auth::handlers::{get_profile, login, register, update_profile};
+use crate::auth::middleware::jwt_auth;
 use crate::config::Config;
-use crate::db::pool::create_pool;
-use crate::handlers::{quiz, tag};
+use crate::db::pool::create_postgres_pool;
+use crate::handlers::{paper, quiz, tag};
+use crate::repository::postgres::PostgresRepository;
+use crate::state::AppState;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
     let config = Config::default();
 
-    let pool = create_pool(&config.database.path)
-        .expect("Failed to create database pool");
+    let pool = create_postgres_pool(&config.database.url)
+        .await
+        .expect("Failed to create PostgreSQL pool");
 
-    tracing::info!("Starting server on {}:{}", config.server.host, config.server.port);
+    let state = AppState {
+        quiz_repo: Arc::new(PostgresRepository::new(pool.clone())),
+        auth_repo: Arc::new(crate::auth::PostgresAuthRepository::new(pool)),
+        jwt_secret: config.jwt.secret,
+    };
+
+    tracing::info!(
+        "Starting server on {}:{}",
+        config.server.host,
+        config.server.port
+    );
 
     let app = Router::new()
+        // Auth endpoints (public)
+        .route("/api/auth/register", post(register))
+        .route("/api/auth/login", post(login))
+        // User endpoints (protected)
+        .route(
+            "/api/user/profile",
+            get(get_profile.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/user/profile",
+            put(update_profile.layer(middleware::from_fn(jwt_auth))),
+        )
         // Quiz endpoints
         .route("/api/quizzes", get(quiz::get_quizzes))
+        .route("/api/quizzes/batch", post(quiz::batch_get_quizzes))
         .route("/api/quizzes/search", get(quiz::search_quizzes))
         .route("/api/quizzes/random", get(quiz::get_random_quizzes))
         .route("/api/quizzes/filter-meta", get(quiz::get_filter_meta))
@@ -37,15 +72,27 @@ async fn main() {
         .route("/api/tags", get(tag::get_tags))
         .route("/api/quizzes/:id/tags", get(tag::get_quiz_tags))
         .route("/api/quizzes/:id/tags", post(tag::add_tag))
-        .route("/api/quizzes/:quiz_id/tags/:tag_id", delete(tag::delete_tag))
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
-        .with_state(pool);
+        .route(
+            "/api/quizzes/:quiz_id/tags/:tag_id",
+            delete(tag::delete_tag),
+        )
+        // Paper endpoints
+        .route("/api/papers", post(paper::create_paper))
+        .route("/api/papers", get(paper::get_papers))
+        .route("/api/papers/:id", get(paper::get_paper_by_id))
+        .route("/api/papers/:id", delete(paper::delete_paper))
+        .route_layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
+        .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(format!("{}:{}", config.server.host, config.server.port))
-        .await
-        .expect("Failed to bind to port");
+    let listener =
+        tokio::net::TcpListener::bind(format!("{}:{}", config.server.host, config.server.port))
+            .await
+            .expect("Failed to bind to port");
 
-    axum::serve(listener, app)
-        .await
-        .expect("Server error");
+    axum::serve(listener, app).await.expect("Server error");
 }
