@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod error;
 mod handlers;
+mod openapi;
 mod repository;
 mod services;
 mod state;
@@ -16,12 +17,15 @@ use axum::{
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::auth::handlers::{get_profile, login, register, update_profile};
 use crate::auth::middleware::jwt_auth;
 use crate::config::Config;
 use crate::db::pool::create_postgres_pool;
-use crate::handlers::{paper, quiz, tag};
+use crate::handlers::{paper, practice, quiz, tag};
+use crate::openapi::ApiDoc;
 use crate::repository::postgres::PostgresRepository;
 use crate::state::AppState;
 
@@ -49,6 +53,8 @@ async fn main() {
     );
 
     let app = Router::new()
+        // Swagger UI
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Auth endpoints (public)
         .route("/api/auth/register", post(register))
         .route("/api/auth/login", post(login))
@@ -67,20 +73,49 @@ async fn main() {
         .route("/api/quizzes/search", get(quiz::search_quizzes))
         .route("/api/quizzes/random", get(quiz::get_random_quizzes))
         .route("/api/quizzes/filter-meta", get(quiz::get_filter_meta))
-        .route("/api/quizzes/:id", get(quiz::get_quiz_by_id))
+        .route("/api/quizzes/{id}", get(quiz::get_quiz_by_id))
         // Tag endpoints
         .route("/api/tags", get(tag::get_tags))
-        .route("/api/quizzes/:id/tags", get(tag::get_quiz_tags))
-        .route("/api/quizzes/:id/tags", post(tag::add_tag))
+        .route("/api/quizzes/{id}/tags", get(tag::get_quiz_tags))
+        .route("/api/quizzes/{id}/tags", post(tag::add_tag))
         .route(
-            "/api/quizzes/:quiz_id/tags/:tag_id",
+            "/api/quizzes/{quiz_id}/tags/{tag_id}",
             delete(tag::delete_tag),
         )
-        // Paper endpoints
+        // Paper endpoints (legacy)
         .route("/api/papers", post(paper::create_paper))
         .route("/api/papers", get(paper::get_papers))
-        .route("/api/papers/:id", get(paper::get_paper_by_id))
-        .route("/api/papers/:id", delete(paper::delete_paper))
+        .route("/api/papers/{id}", get(paper::get_paper_by_id))
+        .route("/api/papers/{id}", delete(paper::delete_paper))
+        // Public papers endpoints
+        .route("/api/papers/public", get(paper::get_public_papers))
+        .route("/api/papers/public/{id}", get(paper::get_public_paper_by_id))
+        // User papers endpoints (protected)
+        .route(
+            "/api/papers/my",
+            get(paper::get_my_papers.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/papers/my",
+            post(paper::create_my_paper.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/papers/my/{id}",
+            put(paper::update_my_paper.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/papers/my/{id}",
+            delete(paper::delete_my_paper.layer(middleware::from_fn(jwt_auth))),
+        )
+        // Practice record endpoints (protected)
+        .route(
+            "/api/practices",
+            post(practice::create_practice_record.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/practices",
+            get(practice::get_practice_records.layer(middleware::from_fn(jwt_auth))),
+        )
         .route_layer(
             CorsLayer::new()
                 .allow_origin(Any)

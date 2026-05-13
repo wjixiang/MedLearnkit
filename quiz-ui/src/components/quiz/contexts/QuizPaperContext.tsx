@@ -38,6 +38,7 @@ type QuizPaperAction =
   | { type: "ADD_PAPER"; payload: QuizPaper }
   | { type: "REMOVE_PAPER"; payload: string }
   | { type: "LOAD_PAPER"; payload: { paper: QuizPaper; quizzes: SelectedQuiz[] } }
+  | { type: "LOAD_PAPER_PREVIEW"; payload: SelectedQuiz[] }
   | { type: "HYDRATE"; payload: Partial<QuizPaperState> };
 
 const MAX_SELECT = 50;
@@ -152,6 +153,13 @@ function quizPaperReducer(
         },
         view: "practice",
         currentIndex: 0,
+      };
+    case "LOAD_PAPER_PREVIEW":
+      return {
+        ...state,
+        selectedQuizzes: action.payload,
+        view: "preview",
+        currentPaper: null,
       };
     case "HYDRATE":
       return {

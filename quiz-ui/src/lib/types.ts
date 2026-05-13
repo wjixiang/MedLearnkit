@@ -100,6 +100,48 @@ export interface QuizPaper {
   created_at: string;
 }
 
+export interface PublicPaper {
+  id: string;
+  title: string;
+  description: string | null;
+  quiz_ids: string[];
+  quiz_count: number;
+  source: string | null;
+  tags: string[];
+  created_at: string;
+}
+
+export interface UserPaper {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  quiz_ids: string[];
+  quiz_count: number;
+  created_at: string;
+}
+
+export interface PracticeRecord {
+  id: string;
+  user_id: string;
+  quiz_id: string;
+  quiz_type: string;
+  quiz_class: string;
+  user_answer: string | null;
+  is_correct: boolean;
+  time_spent_seconds: number;
+  created_at: string;
+}
+
+export interface CreatePracticeRecordRequest {
+  quiz_id: string;
+  quiz_type: string;
+  quiz_class: string;
+  user_answer: string | null;
+  is_correct: boolean;
+  time_spent_seconds: number;
+}
+
 export interface User {
   id: string;
   email: string;

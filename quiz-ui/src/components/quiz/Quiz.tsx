@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { QuizPractice, QuizOption } from "@/lib/types";
@@ -6,6 +6,7 @@ import { Check, X } from "lucide-react";
 import { useQuizLogic } from "./hooks/useQuizLogic";
 import { OptionItem } from "./components/OptionItem";
 import { AnswerSection } from "./components/AnswerSection";
+import { quizApi } from "@/lib/api";
 
 interface QuizProps {
   quiz: QuizPractice;
@@ -20,6 +21,30 @@ export function Quiz({
   thisQuizIndex,
   onStateChange,
 }: QuizProps) {
+  const [startTime] = useState(() => Date.now());
+
+  const handlePracticeRecord = async (result: {
+    quizId: string;
+    quizType: string;
+    quizClass: string;
+    userAnswer: string | null;
+    isCorrect: boolean;
+    timeSpentSeconds: number;
+  }) => {
+    try {
+      await quizApi.createPracticeRecord({
+        quiz_id: result.quizId,
+        quiz_type: result.quizType,
+        quiz_class: result.quizClass,
+        user_answer: result.userAnswer,
+        is_correct: result.isCorrect,
+        time_spent_seconds: result.timeSpentSeconds,
+      });
+    } catch (error) {
+      console.error("Failed to record practice:", error);
+    }
+  };
+
   const {
     selected,
     submitted,
@@ -36,7 +61,13 @@ export function Quiz({
     getShuffledOptions,
     handleOptionSelect,
     handleSubmit,
-  } = useQuizLogic({ quiz, currentQuizIndex, thisQuizIndex });
+  } = useQuizLogic({
+    quiz,
+    currentQuizIndex,
+    thisQuizIndex,
+    onSubmit: handlePracticeRecord,
+    startTime,
+  });
 
   useEffect(() => {
     if (submitted && onStateChange) {
@@ -141,45 +172,56 @@ export function Quiz({
       <div className="w-full p-2 md:p-4 h-full overflow-y-auto">
         {renderBadges()}
 
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-5 max-w-2xl">
           {subQuestions.map((sq, idx) => {
             const isActive = idx === currentSubIndex && !submitted;
             const userAns = subAnswers[sq.question_id];
             const isSubCorrect = userAns === sq.answer;
 
             return (
-              <div key={sq.question_id} className="space-y-2">
+              <div key={sq.question_id} className="space-y-3">
                 <div
-                  className={`flex items-start gap-2 p-3 rounded-lg border transition-colors cursor-pointer ${
-                    isActive
-                      ? "border-primary bg-primary/5"
-                      : submitted
-                        ? isSubCorrect
-                          ? "border-green-300 bg-green-50 dark:bg-green-950/30"
-                          : "border-red-300 bg-red-50 dark:bg-red-950/30"
-                        : userAns
-                          ? "border-border bg-muted/30"
-                          : "border-transparent hover:bg-muted/30"
-                  }`}
+                  className="cursor-pointer group"
                   onClick={() => !submitted && setCurrentSubIndex(idx)}
                 >
-                  <span className="text-sm font-medium text-muted-foreground shrink-0 mt-0.5">
-                    {idx + 1}.
-                  </span>
-                  <p className="text-sm leading-relaxed">{sq.question_text}</p>
-                  {submitted && (
-                    <span className="shrink-0 mt-0.5">
-                      {isSubCorrect ? (
-                        <Check size={16} className="text-green-600 dark:text-green-400" />
-                      ) : (
-                        <X size={16} className="text-red-600 dark:text-red-400" />
-                      )}
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : submitted
+                            ? isSubCorrect
+                              ? "bg-green-500 text-white"
+                              : "bg-red-500 text-white"
+                            : userAns
+                              ? "bg-primary/15 text-primary"
+                              : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                      }`}
+                    >
+                      {idx + 1}
                     </span>
+                    <p className={`leading-relaxed pt-0.5 ${
+                      isActive ? "text-base font-medium text-foreground" : "text-sm text-foreground/80"
+                    }`}>
+                      {sq.question_text}
+                    </p>
+                    {submitted && (
+                      <span className="shrink-0 mt-0.5">
+                        {isSubCorrect ? (
+                          <Check size={16} className="text-green-600 dark:text-green-400" />
+                        ) : (
+                          <X size={16} className="text-red-600 dark:text-red-400" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {isActive && (
+                    <div className="mt-1.5 ml-9 h-0.5 w-12 rounded-full bg-primary" />
                   )}
                 </div>
 
                 {isActive && (
-                  <div className="space-y-1 ml-4">
+                  <div className="space-y-1 ml-9">
                     {getShuffledOptions(quiz.options).map((opt, optIdx) => {
                       const isSelected = userAns === opt.oid;
                       return (
@@ -236,7 +278,7 @@ export function Quiz({
 
         <p className="text-lg mb-6 leading-relaxed">{quiz.main_question}</p>
 
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-5 max-w-2xl">
           {subQuestions.map((sq, idx) => {
             const isActive = idx === currentSubIndex && !submitted;
             const userAns = subAnswers[sq.question_id];
@@ -245,38 +287,49 @@ export function Quiz({
             const subOpts = optionsMap?.[key] ?? [];
 
             return (
-              <div key={sq.question_id} className="space-y-2">
+              <div key={sq.question_id} className="space-y-3">
                 <div
-                  className={`flex items-start gap-2 p-3 rounded-lg border transition-colors cursor-pointer ${
-                    isActive
-                      ? "border-primary bg-primary/5"
-                      : submitted
-                        ? isSubCorrect
-                          ? "border-green-300 bg-green-50 dark:bg-green-950/30"
-                          : "border-red-300 bg-red-50 dark:bg-red-950/30"
-                        : userAns
-                          ? "border-border bg-muted/30"
-                          : "border-transparent hover:bg-muted/30"
-                  }`}
+                  className="cursor-pointer group"
                   onClick={() => !submitted && setCurrentSubIndex(idx)}
                 >
-                  <span className="text-sm font-medium text-muted-foreground shrink-0 mt-0.5">
-                    {idx + 1}.
-                  </span>
-                  <p className="text-sm leading-relaxed">{sq.question_text}</p>
-                  {submitted && (
-                    <span className="shrink-0 mt-0.5">
-                      {isSubCorrect ? (
-                        <Check size={16} className="text-green-600 dark:text-green-400" />
-                      ) : (
-                        <X size={16} className="text-red-600 dark:text-red-400" />
-                      )}
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors ${
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : submitted
+                            ? isSubCorrect
+                              ? "bg-green-500 text-white"
+                              : "bg-red-500 text-white"
+                            : userAns
+                              ? "bg-primary/15 text-primary"
+                              : "bg-muted text-muted-foreground group-hover:bg-muted/80"
+                      }`}
+                    >
+                      {idx + 1}
                     </span>
+                    <p className={`leading-relaxed pt-0.5 ${
+                      isActive ? "text-base font-medium text-foreground" : "text-sm text-foreground/80"
+                    }`}>
+                      {sq.question_text}
+                    </p>
+                    {submitted && (
+                      <span className="shrink-0 mt-0.5">
+                        {isSubCorrect ? (
+                          <Check size={16} className="text-green-600 dark:text-green-400" />
+                        ) : (
+                          <X size={16} className="text-red-600 dark:text-red-400" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {isActive && (
+                    <div className="mt-1.5 ml-9 h-0.5 w-12 rounded-full bg-primary" />
                   )}
                 </div>
 
-                {isActive && (
-                  <div className="space-y-1 ml-4">
+                {(isActive || submitted) && (
+                  <div className="space-y-1 ml-9">
                     {subOpts.map((opt, optIdx) => {
                       const isSelected = userAns === opt.oid;
                       return (
@@ -367,7 +420,7 @@ export function Quiz({
             quiz={quiz}
             submitted={submitted}
             isCorrect={isCorrect}
-            userAnswer={isXType ? selected : selected[0]}
+            userAnswer={selected[0]}
           />
         </div>
       )}

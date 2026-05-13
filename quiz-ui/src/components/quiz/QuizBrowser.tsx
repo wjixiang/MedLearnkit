@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Filter } from "lucide-react";
 import { quizApi } from "@/lib/api";
 import type { QuizFilter, QuizFilterMeta, QuizPractice } from "@/lib/types";
 import { FilterPanel } from "./FilterPanel";
@@ -7,37 +7,28 @@ import { QuizSelectCard } from "./components/QuizSelectCard";
 import { SelectToolbar } from "./components/SelectToolbar";
 import { PaperPreview } from "./components/PaperPreview";
 import { QuizPaper } from "./QuizPaper";
+import { TabLayout } from "./components/TabLayout";
+import { PaperTab } from "./PaperTab";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useQuizPaper } from "./contexts/QuizPaperContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AdvancedSelectMenu } from "./components/AdvancedSelectMenu";
+import { UserDropdown } from "@/components/UserDropdown";
 
-type BrowserView = "select" | "preview" | "practice" | "papers";
+type BrowserView = "select" | "preview" | "practice";
+type MainTab = "filter" | "paper";
+
+const TABS = [
+  { id: "filter", label: "筛选做题", icon: <Filter size={16} /> },
+  { id: "paper", label: "试卷抽题", icon: <BookOpen size={16} /> },
+];
 
 export function QuizBrowser() {
   return <QuizBrowserContent />;
 }
 
-function UserAvatar() {
-  const { user } = useAuth();
-  const fallback = user?.username
-    ? user.username.slice(0, 2).toUpperCase()
-    : user?.email
-      ? user.email[0].toUpperCase()
-      : "U";
-
-  return (
-    <Avatar size="sm">
-      <AvatarImage src={user?.avatar_url ?? undefined} alt={user?.username ?? "用户"} />
-      <AvatarFallback>{fallback}</AvatarFallback>
-    </Avatar>
-  );
-}
-
 function QuizBrowserContent() {
   const { state, dispatch, maxSelect, selectedCount, isSelected } = useQuizPaper();
+  const [mainTab, setMainTab] = useState<MainTab>("filter");
   const [browserView, setBrowserView] = useState<BrowserView>("select");
   const [meta, setMeta] = useState<QuizFilterMeta | null>(null);
   const [filter, setFilter] = useState<QuizFilter>({ page: 1, limit: 20 });
@@ -156,35 +147,8 @@ function QuizBrowserContent() {
     setBrowserView("select");
   };
 
-  const handleLoadPaper = async (paperId: string) => {
-    try {
-      const paper = await quizApi.getPaperById(paperId);
-      const detailed = await Promise.all(
-        paper.quiz_ids.map((id) => quizApi.getQuizById(id)),
-      );
-      const quizzesWithDetails = detailed.map((q, i) => ({
-        ...q,
-        selectedAt: Date.now() + i,
-      }));
-      dispatch({
-        type: "LOAD_PAPER",
-        payload: { paper, quizzes: quizzesWithDetails },
-      });
-      setBrowserView("practice");
-    } catch (error) {
-      console.error("Failed to load paper:", error);
-    }
-  };
-
-  const handleDeletePaper = async (paperId: string) => {
-    try {
-      await quizApi.deletePaper(paperId);
-      dispatch({ type: "REMOVE_PAPER", payload: paperId });
-      const papers = await quizApi.getPapers();
-      dispatch({ type: "SET_SAVED_PAPERS", payload: papers });
-    } catch (error) {
-      console.error("Failed to delete paper:", error);
-    }
+  const handleTabChange = (tabId: string) => {
+    setMainTab(tabId as MainTab);
   };
 
   if (!meta) {
@@ -207,17 +171,6 @@ function QuizBrowserContent() {
     return <PaperPreview onConfirm={handleStartPractice} onBack={handleBackToSelect} />;
   }
 
-  if (browserView === "papers") {
-    return (
-      <PapersView
-        papers={state.savedPapers}
-        onLoad={handleLoadPaper}
-        onDelete={handleDeletePaper}
-        onBack={() => setBrowserView("select")}
-      />
-    );
-  }
-
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Header */}
@@ -226,22 +179,99 @@ function QuizBrowserContent() {
           <h1 className="text-xl font-bold">医学题库</h1>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <UserAvatar />
+            <UserDropdown />
           </div>
         </div>
       </header>
 
+      {/* Tab bar */}
+      <TabLayout tabs={TABS} activeTab={mainTab} onTabChange={handleTabChange}>
+        {mainTab === "filter" ? (
+          <FilterTabContent
+            meta={meta}
+            filter={filter}
+            loading={loading}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            quizList={quizList}
+            selectedCount={selectedCount}
+            maxSelect={maxSelect}
+            selectedIds={selectedIds}
+            isSelected={isSelected}
+            onFilterChange={handleFilterChange}
+            onPageChange={handlePageChange}
+            onToggleQuiz={handleToggleQuiz}
+            onSelectAll={handleSelectAll}
+            onSelectFirstN={handleSelectFirstN}
+            onSelectRandomN={handleSelectRandomN}
+            onGeneratePaper={handleGeneratePaper}
+            onClearAll={handleClearAll}
+          />
+        ) : (
+          <PaperTab
+            onBack={handleBackToSelect}
+            onStartPractice={handleStartPractice}
+          />
+        )}
+      </TabLayout>
+    </div>
+  );
+}
+
+interface FilterTabContentProps {
+  meta: QuizFilterMeta;
+  filter: QuizFilter;
+  loading: boolean;
+  totalPages: number;
+  totalCount: number;
+  quizList: QuizPractice[];
+  selectedCount: number;
+  maxSelect: number;
+  selectedIds: Set<string>;
+  isSelected: (id: string) => boolean;
+  onFilterChange: (filter: QuizFilter) => void;
+  onPageChange: (page: number) => void;
+  onToggleQuiz: (quiz: QuizPractice) => void;
+  onSelectAll: () => void;
+  onSelectFirstN: (n: number) => void;
+  onSelectRandomN: (n: number) => void;
+  onGeneratePaper: () => void;
+  onClearAll: () => void;
+}
+
+function FilterTabContent({
+  meta,
+  filter,
+  loading,
+  totalPages,
+  totalCount,
+  quizList,
+  selectedCount,
+  maxSelect,
+  selectedIds,
+  isSelected,
+  onFilterChange,
+  onPageChange,
+  onToggleQuiz,
+  onSelectAll,
+  onSelectFirstN,
+  onSelectRandomN,
+  onGeneratePaper,
+  onClearAll,
+}: FilterTabContentProps) {
+  return (
+    <>
       {/* Select Toolbar */}
       <SelectToolbar
         selectedCount={selectedCount}
         maxSelect={maxSelect}
-        onGeneratePaper={handleGeneratePaper}
-        onClearAll={handleClearAll}
+        onGeneratePaper={onGeneratePaper}
+        onClearAll={onClearAll}
         quizList={quizList}
         selectedIds={selectedIds}
-        onSelectAll={handleSelectAll}
-        onSelectFirstN={handleSelectFirstN}
-        onSelectRandomN={handleSelectRandomN}
+        onSelectAll={onSelectAll}
+        onSelectFirstN={onSelectFirstN}
+        onSelectRandomN={onSelectRandomN}
       />
 
       {/* Main content - Left sidebar + Right list */}
@@ -252,7 +282,7 @@ function QuizBrowserContent() {
             <FilterPanel
               meta={meta}
               filter={filter}
-              onFilterChange={handleFilterChange}
+              onFilterChange={onFilterChange}
               totalCount={totalCount}
             />
           </div>
@@ -267,9 +297,11 @@ function QuizBrowserContent() {
               <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b text-xs text-muted-foreground font-medium shrink-0">
                 <span className="w-6 text-center">#</span>
                 <span className="w-4" />
-                <span className="w-24">标签</span>
+                <span className="w-12 text-center">题型</span>
+                <span className="w-14 text-center">科目</span>
                 <span className="flex-1">题目</span>
-                <span className="max-w-40">章节 / 年份</span>
+                <span className="w-28">章节</span>
+                <span className="w-12 text-center">年份</span>
               </div>
 
               {/* Scrollable content */}
@@ -280,12 +312,11 @@ function QuizBrowserContent() {
                       <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
                         <span className="w-6 h-3 bg-muted rounded" />
                         <span className="w-4 h-4 bg-muted rounded" />
-                        <div className="flex gap-1.5">
-                          <span className="h-4 bg-muted rounded w-8" />
-                          <span className="h-4 bg-muted rounded w-12" />
-                        </div>
+                        <span className="w-12 h-4 bg-muted rounded" />
+                        <span className="w-14 h-4 bg-muted rounded" />
                         <span className="flex-1 h-4 bg-muted rounded" />
-                        <span className="w-20 h-4 bg-muted rounded" />
+                        <span className="w-28 h-4 bg-muted rounded" />
+                        <span className="w-12 h-4 bg-muted rounded" />
                       </div>
                     ))}
                   </div>
@@ -301,7 +332,7 @@ function QuizBrowserContent() {
                         quiz={quiz}
                         index={(filter.page ?? 1 - 1) * (filter.limit ?? 20) + i + 1}
                         isSelected={isSelected(quiz.id)}
-                        onToggle={() => handleToggleQuiz(quiz)}
+                        onToggle={() => onToggleQuiz(quiz)}
                         disabled={
                           !isSelected(quiz.id) && selectedCount >= maxSelect
                         }
@@ -317,7 +348,7 @@ function QuizBrowserContent() {
                     variant="outline"
                     size="sm"
                     disabled={(filter.page ?? 1) <= 1}
-                    onClick={() => handlePageChange((filter.page ?? 1) - 1)}
+                    onClick={() => onPageChange((filter.page ?? 1) - 1)}
                   >
                     上一页
                   </Button>
@@ -328,7 +359,7 @@ function QuizBrowserContent() {
                     variant="outline"
                     size="sm"
                     disabled={(filter.page ?? 1) >= totalPages}
-                    onClick={() => handlePageChange((filter.page ?? 1) + 1)}
+                    onClick={() => onPageChange((filter.page ?? 1) + 1)}
                   >
                     下一页
                   </Button>
@@ -338,73 +369,6 @@ function QuizBrowserContent() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function PapersView({
-  papers,
-  onLoad,
-  onDelete,
-  onBack,
-}: {
-  papers: import("@/lib/types").QuizPaper[];
-  onLoad: (id: string) => void;
-  onDelete: (id: string) => void;
-  onBack: () => void;
-}) {
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-card border-b sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold">我的试卷</h1>
-            <Button variant="outline" size="sm" onClick={onBack}>
-              返回选题
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-6">
-        {papers.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            暂无保存的试卷
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {papers.map((paper) => (
-              <div
-                key={paper.id}
-                className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">{paper.title}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {paper.quiz_ids.length} 道题 ·{" "}
-                      {new Date(paper.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => onLoad(paper.id)}>
-                      <BookOpen size={16} />
-                      <span className="ml-2">练习</span>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => onDelete(paper.id)}
-                    >
-                      删除
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-    </div>
+    </>
   );
 }

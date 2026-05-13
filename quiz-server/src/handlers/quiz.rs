@@ -6,6 +6,29 @@ use crate::error::AppError;
 use crate::services::quiz_service::QuizFilter;
 use crate::state::AppState;
 
+#[derive(Debug, serde::Deserialize)]
+pub struct RandomQuery {
+    pub limit: Option<u32>,
+    pub types: Option<String>,
+    pub classes: Option<String>,
+    pub units: Option<String>,
+    pub sources: Option<String>,
+    pub years: Option<String>,
+    pub search: Option<String>,
+}
+
+/// Get paginated list of quizzes
+#[utoipa::path(
+    get,
+    path = "/api/quizzes",
+    tag = "quizzes",
+    params(
+        ("filter" = QuizFilter, Query, description = "Quiz filter parameters")
+    ),
+    responses(
+        (status = 200, description = "List of quizzes")
+    )
+)]
 pub async fn get_quizzes(
     State(state): State<AppState>,
     Query(filter): Query<QuizFilter>,
@@ -38,6 +61,16 @@ pub async fn get_quizzes(
     }
 }
 
+/// Get quizzes by IDs (batch)
+#[utoipa::path(
+    post,
+    path = "/api/quizzes/batch",
+    tag = "quizzes",
+    request_body = crate::services::quiz_service::BatchIdsRequest,
+    responses(
+        (status = 200, description = "Quizzes retrieved")
+    )
+)]
 pub async fn batch_get_quizzes(
     State(state): State<AppState>,
     Json(body): Json<crate::services::quiz_service::BatchIdsRequest>,
@@ -49,6 +82,15 @@ pub async fn batch_get_quizzes(
     Ok(Json(serde_json::to_value(quizzes).unwrap()))
 }
 
+/// Get filter metadata for quizzes
+#[utoipa::path(
+    get,
+    path = "/api/quizzes/filter-meta",
+    tag = "quizzes",
+    responses(
+        (status = 200, description = "Filter metadata")
+    )
+)]
 pub async fn get_filter_meta(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -56,6 +98,18 @@ pub async fn get_filter_meta(
     Ok(Json(serde_json::to_value(meta).unwrap()))
 }
 
+/// Search quizzes
+#[utoipa::path(
+    get,
+    path = "/api/quizzes/search",
+    tag = "quizzes",
+    params(
+        ("filter" = QuizFilter, Query, description = "Quiz filter parameters")
+    ),
+    responses(
+        (status = 200, description = "Search results")
+    )
+)]
 pub async fn search_quizzes(
     State(state): State<AppState>,
     Query(filter): Query<QuizFilter>,
@@ -78,6 +132,19 @@ pub async fn search_quizzes(
     Ok(Json(result))
 }
 
+/// Get a quiz by ID
+#[utoipa::path(
+    get,
+    path = "/api/quizzes/{id}",
+    tag = "quizzes",
+    params(
+        ("id" = String, Path, description = "Quiz ID")
+    ),
+    responses(
+        (status = 200, description = "Quiz retrieved"),
+        (status = 404, description = "Quiz not found")
+    )
+)]
 pub async fn get_quiz_by_id(
     State(state): State<AppState>,
     Path(id): Path<String>,
@@ -88,17 +155,15 @@ pub async fn get_quiz_by_id(
     }
 }
 
-#[derive(Debug, serde::Deserialize)]
-pub struct RandomQuery {
-    pub limit: Option<u32>,
-    pub types: Option<String>,
-    pub classes: Option<String>,
-    pub units: Option<String>,
-    pub sources: Option<String>,
-    pub years: Option<String>,
-    pub search: Option<String>,
-}
-
+/// Get random quizzes
+#[utoipa::path(
+    get,
+    path = "/api/quizzes/random",
+    tag = "quizzes",
+    responses(
+        (status = 200, description = "Random quizzes")
+    )
+)]
 pub async fn get_random_quizzes(
     State(state): State<AppState>,
     Query(query): Query<RandomQuery>,

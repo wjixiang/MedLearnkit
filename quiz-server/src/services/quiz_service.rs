@@ -1,6 +1,7 @@
 use serde::Deserialize;
+use utoipa::ToSchema;
 
-#[derive(Debug, Deserialize, Default, Clone)]
+#[derive(Debug, Deserialize, Default, Clone, ToSchema)]
 pub struct QuizFilter {
     pub types: Option<String>,
     pub classes: Option<String>,
@@ -15,7 +16,7 @@ pub struct QuizFilter {
     pub include_details: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct BatchIdsRequest {
     pub quiz_ids: Vec<String>,
 }

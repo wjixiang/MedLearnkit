@@ -5,6 +5,7 @@ use axum::{
 use crate::error::AppError;
 use crate::state::AppState;
 use serde::Deserialize;
+use utoipa::ToSchema;
 
 #[derive(Debug, Deserialize)]
 pub struct TagQuery {
@@ -12,6 +13,19 @@ pub struct TagQuery {
     pub limit: Option<u32>,
 }
 
+/// Get list of tags
+#[utoipa::path(
+    get,
+    path = "/api/tags",
+    tag = "tags",
+    params(
+        ("q" = Option<String>, Query, description = "Search query", nullable),
+        ("limit" = Option<u32>, Query, description = "Max results", nullable)
+    ),
+    responses(
+        (status = 200, description = "List of tags")
+    )
+)]
 pub async fn get_tags(
     State(state): State<AppState>,
     Query(query): Query<TagQuery>,
@@ -21,13 +35,26 @@ pub async fn get_tags(
     Ok(Json(serde_json::to_value(tags).unwrap()))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct AddTagRequest {
     pub quiz_id: String,
     pub value: String,
     pub tag_type: Option<String>,
 }
 
+/// Add a tag to a quiz
+#[utoipa::path(
+    post,
+    path = "/api/quizzes/{quiz_id}/tags",
+    tag = "tags",
+    params(
+        ("quiz_id" = String, Path, description = "Quiz ID")
+    ),
+    request_body = AddTagRequest,
+    responses(
+        (status = 200, description = "Tag added")
+    )
+)]
 pub async fn add_tag(
     State(state): State<AppState>,
     Path(quiz_id): Path<String>,
@@ -38,6 +65,19 @@ pub async fn add_tag(
     Ok(Json(serde_json::json!({ "success": true, "id": id })))
 }
 
+/// Delete a tag from a quiz
+#[utoipa::path(
+    delete,
+    path = "/api/quizzes/{quiz_id}/tags/{tag_id}",
+    tag = "tags",
+    params(
+        ("quiz_id" = String, Path, description = "Quiz ID"),
+        ("tag_id" = String, Path, description = "Tag ID")
+    ),
+    responses(
+        (status = 200, description = "Tag deleted")
+    )
+)]
 pub async fn delete_tag(
     State(state): State<AppState>,
     Path((_quiz_id, tag_id)): Path<(String, String)>,
@@ -46,6 +86,18 @@ pub async fn delete_tag(
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
+/// Get tags for a quiz
+#[utoipa::path(
+    get,
+    path = "/api/quizzes/{quiz_id}/tags",
+    tag = "tags",
+    params(
+        ("quiz_id" = String, Path, description = "Quiz ID")
+    ),
+    responses(
+        (status = 200, description = "Tags retrieved")
+    )
+)]
 pub async fn get_quiz_tags(
     State(state): State<AppState>,
     Path(quiz_id): Path<String>,

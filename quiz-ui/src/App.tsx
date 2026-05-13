@@ -3,6 +3,9 @@ import { QuizBrowser } from "@/components/quiz/QuizBrowser";
 import { QuizPaperProvider } from "@/components/quiz/contexts/QuizPaperContext";
 import { LoginPage } from "@/pages/LoginPage";
 import { SignupPage } from "@/pages/SignupPage";
+import { SettingsLayout } from "@/pages/SettingsLayout";
+import { ProfileSettingsPage } from "@/pages/ProfileSettingsPage";
+import { AccountManagementPage } from "@/pages/AccountManagementPage";
 import { useAuth } from "@/contexts/AuthContext";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -62,6 +65,18 @@ export function App() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="/settings/profile" replace />} />
+        <Route path="profile" element={<ProfileSettingsPage />} />
+        <Route path="account" element={<AccountManagementPage />} />
+      </Route>
     </Routes>
   );
 }

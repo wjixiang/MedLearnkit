@@ -1,6 +1,5 @@
 import { Check } from "lucide-react";
 import type { QuizPractice } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 
 interface QuizSelectCardProps {
   quiz: QuizPractice;
@@ -26,12 +25,10 @@ export function QuizSelectCard({
       `}
       onClick={() => !disabled && onToggle()}
     >
-      {/* Index number */}
       <span className="w-6 text-center text-xs text-muted-foreground shrink-0">
         {index}
       </span>
 
-      {/* Checkbox */}
       <div
         className={`
           shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center transition-all
@@ -43,28 +40,25 @@ export function QuizSelectCard({
         {isSelected && <Check size={10} className="text-primary-foreground" />}
       </div>
 
-      {/* Badges */}
-      <div className="flex items-center gap-1.5 shrink-0">
-        <Badge variant="secondary" className="text-xs px-1.5 py-0">
-          {quiz.type}
-        </Badge>
-        <Badge variant="outline" className="text-xs px-1.5 py-0">
-          {quiz.class}
-        </Badge>
-      </div>
+      <span className="w-12 text-center text-xs font-medium text-muted-foreground shrink-0">
+        {quiz.type}型
+      </span>
 
-      {/* Question */}
+      <span className="w-14 text-center text-xs text-muted-foreground shrink-0 truncate">
+        {quiz.class}
+      </span>
+
       <p className="flex-1 min-w-0 text-sm truncate text-foreground/90">
         {quiz.question}
       </p>
 
-      {/* Meta */}
-      <div className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
-        <span className="truncate max-w-32">{quiz.unit}</span>
-        {quiz.extracted_year && (
-          <span>{quiz.extracted_year}</span>
-        )}
-      </div>
+      <span className="w-28 shrink-0 text-xs text-muted-foreground truncate">
+        {quiz.unit}
+      </span>
+
+      <span className="w-12 text-center text-xs text-muted-foreground shrink-0">
+        {quiz.extracted_year || ""}
+      </span>
     </div>
   );
 }

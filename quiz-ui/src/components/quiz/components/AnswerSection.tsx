@@ -28,26 +28,42 @@ export function AnswerSection({
 }: AnswerSectionProps) {
   if (!submitted) return null;
 
-  if (quiz.type === "B" && quiz.sub_questions) {
+  const isA3 = quiz.type === "A3";
+  const isB = quiz.type === "B";
+  const isMultiSub = (isB || isA3) && quiz.sub_questions && quiz.sub_questions.length > 0;
+
+  if (isMultiSub) {
+    const optionsMap = quiz.options_map;
+    const subKeys = optionsMap ? Object.keys(optionsMap).sort() : [];
+
     return (
       <div className="space-y-4">
         <div className="bg-card text-card-foreground p-4 rounded-lg border space-y-4">
           <h3 className="text-lg font-semibold">答案</h3>
           <div className="space-y-3 ml-2">
-            {quiz.sub_questions.map((sq) => {
+            {quiz.sub_questions!.map((sq, idx) => {
               const userAns = subAnswers?.[sq.question_id];
               const correct = userAns === sq.answer;
+
+              let opts: { oid: string; text: string }[];
+              if (isA3 && optionsMap) {
+                const key = subKeys[idx] ?? String(idx);
+                opts = optionsMap[key] ?? [];
+              } else {
+                opts = quiz.options;
+              }
+
               return (
                 <div key={sq.question_id} className="space-y-1.5">
                   <p className="text-sm text-muted-foreground">{sq.question_text}</p>
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center p-1.5 rounded bg-green-50 dark:bg-green-950/50 text-sm">
                       <span className="font-medium mr-1.5">正确：</span>
-                      <span>{getOptionText(sq.answer, quiz.options)}</span>
+                      <span>{getOptionText(sq.answer, opts)}</span>
                     </div>
                     <div className={`flex items-center p-1.5 rounded text-sm ${correct ? "bg-green-100 dark:bg-green-900/50" : "bg-red-100 dark:bg-red-900/50"}`}>
                       <span className="font-medium mr-1.5">你的：</span>
-                      <span>{getOptionText(userAns ?? null, quiz.options)}</span>
+                      <span>{getOptionText(userAns ?? null, opts)}</span>
                       {correct ? (
                         <Check size={14} className="ml-1 text-green-600 dark:text-green-400" />
                       ) : (

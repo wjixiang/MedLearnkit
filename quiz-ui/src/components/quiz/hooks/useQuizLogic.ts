@@ -1,16 +1,27 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { QuizPractice, Oid, QuizOption } from "@/lib/types";
 
 interface UseQuizLogicProps {
   quiz: QuizPractice;
   currentQuizIndex: number;
   thisQuizIndex: number;
+  onSubmit?: (result: {
+    quizId: string;
+    quizType: string;
+    quizClass: string;
+    userAnswer: string | null;
+    isCorrect: boolean;
+    timeSpentSeconds: number;
+  }) => void;
+  startTime?: number;
 }
 
 export function useQuizLogic({
   quiz,
   currentQuizIndex,
   thisQuizIndex,
+  onSubmit,
+  startTime,
 }: UseQuizLogicProps) {
   const isXType = quiz.type === "X";
   const [selected, setSelected] = useState<Oid[]>(
@@ -107,6 +118,31 @@ export function useQuizLogic({
       subAnswers,
     };
   }, [submitted, isCorrect, selected, isXType, subAnswers]);
+
+  // Call onSubmit callback when answer is submitted
+  useEffect(() => {
+    if (submitted && onSubmit) {
+      const timeSpentSeconds = startTime
+        ? Math.round((Date.now() - startTime) / 1000)
+        : 0;
+
+      let userAnswer: string | null = null;
+      if (isXType) {
+        userAnswer = selected.sort().join("");
+      } else if (selected.length > 0) {
+        userAnswer = selected[0];
+      }
+
+      onSubmit({
+        quizId: quiz.id,
+        quizType: quiz.type,
+        quizClass: quiz.class,
+        userAnswer,
+        isCorrect,
+        timeSpentSeconds,
+      });
+    }
+  }, [submitted, onSubmit, isXType, selected, isCorrect, startTime, quiz.id, quiz.type, quiz.class]);
 
   const reset = useCallback(() => {
     setSelected(isXType ? [] : []);

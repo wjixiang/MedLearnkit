@@ -6,6 +6,18 @@ use crate::auth::models::{
 use crate::error::AppError;
 use crate::state::AppState;
 
+/// Register a new user
+#[utoipa::path(
+    post,
+    path = "/api/auth/register",
+    tag = "auth",
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "User registered successfully", body = AuthResponse),
+        (status = 400, description = "Invalid request"),
+        (status = 409, description = "Email already registered")
+    )
+)]
 pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
@@ -43,6 +55,17 @@ pub async fn register(
     }))
 }
 
+/// Login with email and password
+#[utoipa::path(
+    post,
+    path = "/api/auth/login",
+    tag = "auth",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Login successful", body = AuthResponse),
+        (status = 401, description = "Invalid credentials")
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
@@ -76,6 +99,19 @@ pub async fn login(
     }))
 }
 
+/// Get current user profile
+#[utoipa::path(
+    get,
+    path = "/api/user/profile",
+    tag = "auth",
+    security(
+        ("jwt_auth" = [])
+    ),
+    responses(
+        (status = 200, description = "Profile retrieved", body = UserResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn get_profile(
     Extension(user_id): Extension<String>,
     State(state): State<AppState>,
@@ -95,6 +131,20 @@ pub async fn get_profile(
     }))
 }
 
+/// Update current user profile
+#[utoipa::path(
+    put,
+    path = "/api/user/profile",
+    tag = "auth",
+    security(
+        ("jwt_auth" = [])
+    ),
+    request_body = UpdateProfileRequest,
+    responses(
+        (status = 200, description = "Profile updated", body = UserResponse),
+        (status = 401, description = "Unauthorized")
+    )
+)]
 pub async fn update_profile(
     Extension(user_id): Extension<String>,
     State(state): State<AppState>,

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Quiz {
@@ -61,7 +62,7 @@ pub struct QuizWithDetails {
     pub tags: Vec<QuizTag>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct QuizFilterMeta {
     pub types: Vec<String>,
     pub classes: Vec<String>,
@@ -70,10 +71,46 @@ pub struct QuizFilterMeta {
     pub years: Vec<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct Paper {
     pub id: String,
     pub title: String,
     pub quiz_ids: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PublicPaper {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub quiz_ids: Vec<String>,
+    pub quiz_count: i32,
+    pub source: Option<String>,
+    pub tags: Vec<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct UserPaper {
+    pub id: String,
+    pub user_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub quiz_ids: Vec<String>,
+    pub quiz_count: i32,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PracticeRecord {
+    pub id: String,
+    pub user_id: String,
+    pub quiz_id: String,
+    pub quiz_type: String,
+    pub quiz_class: String,
+    pub user_answer: Option<String>,
+    pub is_correct: bool,
+    pub time_spent_seconds: i32,
     pub created_at: String,
 }

@@ -5,6 +5,10 @@ import type {
   QuizFilterMeta,
   PaginatedResponse,
   QuizPaper,
+  PublicPaper,
+  UserPaper,
+  PracticeRecord,
+  CreatePracticeRecordRequest,
   AuthResponse,
   LoginRequest,
   RegisterRequest,
@@ -154,6 +158,53 @@ export const quizApi = {
   deletePaper: (id: string) => {
     const r = fetch(`${API_BASE}/api/papers/${id}`, { method: "DELETE" });
     return r;
+  },
+
+  // Public papers
+  getPublicPapers: () => {
+    return fetchApi<PublicPaper[]>("/api/papers/public");
+  },
+
+  getPublicPaperById: (id: string) => {
+    return fetchApi<PublicPaper>(`/api/papers/public/${id}`);
+  },
+
+  // User papers (authenticated)
+  getMyPapers: () => {
+    return fetchApi<UserPaper[]>("/api/papers/my");
+  },
+
+  createMyPaper: (title: string, quizIds: string[]) => {
+    return fetchApi<UserPaper>("/api/papers/my", {
+      method: "POST",
+      body: JSON.stringify({ title, quiz_ids: quizIds }),
+    });
+  },
+
+  updateMyPaper: (id: string, title: string, quizIds: string[]) => {
+    return fetchApi<UserPaper>(`/api/papers/my/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ title, quiz_ids: quizIds }),
+    });
+  },
+
+  deleteMyPaper: (id: string) => {
+    const r = fetch(`${API_BASE}/api/papers/my/${id}`, { method: "DELETE" });
+    return r;
+  },
+
+  // Practice records
+  createPracticeRecord: (data: CreatePracticeRecordRequest) => {
+    return fetchApi<PracticeRecord>("/api/practices", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPracticeRecords: (limit?: number) => {
+    return fetchApi<PracticeRecord[]>("/api/practices", {
+      params: { limit },
+    });
   },
 };
 
