@@ -6,6 +6,7 @@ import { SignupPage } from "@/pages/SignupPage";
 import { SettingsLayout } from "@/pages/SettingsLayout";
 import { ProfileSettingsPage } from "@/pages/ProfileSettingsPage";
 import { AccountManagementPage } from "@/pages/AccountManagementPage";
+import { StatsPage } from "@/pages/StatsPage";
 import { useAuth } from "@/contexts/AuthContext";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,14 @@ export function App() {
             <QuizPaperProvider>
               <QuizBrowser />
             </QuizPaperProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/stats"
+        element={
+          <ProtectedRoute>
+            <StatsPage />
           </ProtectedRoute>
         }
       />

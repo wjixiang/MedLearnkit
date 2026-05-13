@@ -2,6 +2,7 @@ use utoipa::OpenApi;
 
 use crate::auth::models::{AuthResponse, LoginRequest, RegisterRequest, UpdateProfileRequest, UserResponse};
 use crate::handlers::paper::{CreatePaperRequest, PaperResponse};
+use crate::handlers::discussion::{CreateCommentRequest, CommentResponse, CommentWithRepliesResponse, CommentsListResponse};
 use crate::handlers::tag::AddTagRequest;
 use crate::repository::FilterMeta;
 use crate::services::quiz_service::QuizFilter;
@@ -23,6 +24,9 @@ use crate::services::quiz_service::QuizFilter;
         crate::handlers::tag::get_quiz_tags,
         crate::handlers::tag::add_tag,
         crate::handlers::tag::delete_tag,
+        crate::handlers::discussion::get_comments,
+        crate::handlers::discussion::create_comment,
+        crate::handlers::discussion::delete_comment,
         crate::handlers::paper::create_paper,
         crate::handlers::paper::get_papers,
         crate::handlers::paper::get_paper_by_id,
@@ -38,6 +42,10 @@ use crate::services::quiz_service::QuizFilter;
             CreatePaperRequest,
             PaperResponse,
             AddTagRequest,
+            CreateCommentRequest,
+            CommentResponse,
+            CommentWithRepliesResponse,
+            CommentsListResponse,
             QuizFilter,
             FilterMeta,
         )
@@ -46,7 +54,8 @@ use crate::services::quiz_service::QuizFilter;
         (name = "auth", description = "Authentication endpoints"),
         (name = "quizzes", description = "Quiz management endpoints"),
         (name = "tags", description = "Tag management endpoints"),
-        (name = "papers", description = "Paper management endpoints")
+        (name = "papers", description = "Paper management endpoints"),
+        (name = "discussions", description = "Discussion endpoints")
     ),
     info(
         title = "MedQuiz API",

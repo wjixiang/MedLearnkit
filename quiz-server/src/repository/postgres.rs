@@ -5,6 +5,7 @@ use crate::services::quiz_service::QuizFilter;
 use sqlx::types::chrono;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
+use ::chrono::TimeDelta;
 
 pub struct PostgresRepository {
     pool: PgPool,
@@ -599,14 +600,16 @@ impl QuizRepository for PostgresRepository {
         is_correct: bool,
         time_spent_seconds: i32,
     ) -> Result<PracticeRecord, AppError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::new_v4();
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
 
         sqlx::query(
             r#"INSERT INTO practice_records (id, user_id, quiz_id, user_answer, is_correct, time_spent_seconds)
                VALUES ($1, $2, $3, $4, $5, $6)"#,
         )
-        .bind(&id)
-        .bind(user_id)
+        .bind(id)
+        .bind(user_uuid)
         .bind(quiz_id)
         .bind(user_answer)
         .bind(is_correct)
@@ -616,17 +619,17 @@ impl QuizRepository for PostgresRepository {
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let row = sqlx::query(
-            r#"SELECT id, user_id, quiz_id, user_answer, is_correct, time_spent_seconds, "createdAt"
+            r#"SELECT id, user_id, quiz_id, user_answer, is_correct, time_spent_seconds, created_at
                FROM practice_records WHERE id = $1"#,
         )
-        .bind(&id)
+        .bind(id)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
         Ok(PracticeRecord {
-            id: row.get("id"),
-            user_id: row.get("user_id"),
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
             quiz_id: row.get("quiz_id"),
             quiz_type: quiz_type.to_string(),
             quiz_class: quiz_class.to_string(),
@@ -634,10 +637,283 @@ impl QuizRepository for PostgresRepository {
             is_correct: row.get("is_correct"),
             time_spent_seconds: row.get("time_spent_seconds"),
             created_at: row
-                .try_get::<chrono::NaiveDateTime, _>("createdAt")
+                .try_get::<chrono::NaiveDateTime, _>("created_at")
                 .map(|t| t.to_string())
                 .unwrap_or_default(),
         })
+    }
+
+    // Practice statistics
+    async fn get_practice_daily_stats(
+        &self,
+        user_id: &str,
+        days: i32,
+        quiz_class: Option<&str>,
+    ) -> Result<Vec<DailyPracticeStats>, AppError> {
+        let days = days.clamp(1, 365);
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        // Fetch daily aggregates
+        let rows = sqlx::query(
+            r#"SELECT
+                DATE(pr.created_at) AS date,
+                COUNT(*) AS total_count,
+                COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count,
+                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy,
+                ROUND(AVG(pr.time_spent_seconds)::numeric, 1) AS avg_time_seconds
+            FROM practice_records pr
+            JOIN "Quiz" q ON pr.quiz_id = q.id
+            WHERE pr.user_id = $1
+              AND pr.created_at >= NOW() - ($2 || ' days')::INTERVAL
+              AND ($3::text IS NULL OR q.class = $3)
+            GROUP BY DATE(pr.created_at)
+            ORDER BY date ASC"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .bind(quiz_class)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Fetch per-class breakdown for each date
+        let class_rows = sqlx::query(
+            r#"SELECT
+                DATE(pr.created_at) AS date,
+                q.class AS quiz_class,
+                COUNT(*) AS count,
+                COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count
+            FROM practice_records pr
+            JOIN "Quiz" q ON pr.quiz_id = q.id
+            WHERE pr.user_id = $1
+              AND pr.created_at >= NOW() - ($2 || ' days')::INTERVAL
+              AND ($3::text IS NULL OR q.class = $3)
+            GROUP BY DATE(pr.created_at), q.class
+            ORDER BY date ASC, quiz_class"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .bind(quiz_class)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut class_map: HashMap<String, Vec<ClassBreakdown>> = HashMap::new();
+        for row in &class_rows {
+            let date: String = row.get("date");
+            class_map.entry(date).or_default().push(ClassBreakdown {
+                quiz_class: row.get("quiz_class"),
+                count: row.get("count"),
+                correct_count: row.get("correct_count"),
+            });
+        }
+
+        Ok(rows
+            .iter()
+            .map(|row| {
+                let date: String = row.get("date");
+                DailyPracticeStats {
+                    by_class: class_map.remove(&date).unwrap_or_default(),
+                    date,
+                    total_count: row.get("total_count"),
+                    correct_count: row.get("correct_count"),
+                    accuracy: row.get::<Option<f64>, _>("accuracy").unwrap_or(0.0),
+                    avg_time_seconds: row.get::<Option<f64>, _>("avg_time_seconds").unwrap_or(0.0),
+                }
+            })
+            .collect())
+    }
+
+    async fn get_practice_subject_stats(
+        &self,
+        user_id: &str,
+        days: i32,
+    ) -> Result<Vec<SubjectPracticeStats>, AppError> {
+        let days = days.clamp(1, 365);
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        let rows = sqlx::query(
+            r#"SELECT
+                q.class AS quiz_class,
+                COUNT(*) AS total_count,
+                COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count,
+                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy,
+                ROUND(AVG(pr.time_spent_seconds)::numeric, 1) AS avg_time_seconds
+            FROM practice_records pr
+            JOIN "Quiz" q ON pr.quiz_id = q.id
+            WHERE pr.user_id = $1
+              AND pr.created_at >= NOW() - ($2 || ' days')::INTERVAL
+            GROUP BY q.class
+            ORDER BY total_count DESC"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let classes: Vec<String> = rows.iter().map(|r| r.get::<String, _>("quiz_class")).collect();
+        if classes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Fetch per-type breakdown
+        let type_rows = sqlx::query(
+            r#"SELECT
+                q.class,
+                q.type AS quiz_type,
+                COUNT(*) AS count,
+                COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count
+            FROM practice_records pr
+            JOIN "Quiz" q ON pr.quiz_id = q.id
+            WHERE pr.user_id = $1
+              AND pr.created_at >= NOW() - ($2 || ' days')::INTERVAL
+            GROUP BY q.class, q.type"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut type_map: HashMap<String, Vec<TypeBreakdown>> = HashMap::new();
+        for row in &type_rows {
+            let class: String = row.get("class");
+            type_map.entry(class).or_default().push(TypeBreakdown {
+                quiz_type: row.get("quiz_type"),
+                count: row.get("count"),
+                correct_count: row.get("correct_count"),
+            });
+        }
+
+        // Fetch per-source breakdown
+        let source_rows = sqlx::query(
+            r#"SELECT
+                q.class,
+                COALESCE(q.source, '未知') AS source,
+                COUNT(*) AS count,
+                COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count
+            FROM practice_records pr
+            JOIN "Quiz" q ON pr.quiz_id = q.id
+            WHERE pr.user_id = $1
+              AND pr.created_at >= NOW() - ($2 || ' days')::INTERVAL
+            GROUP BY q.class, q.source"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut source_map: HashMap<String, Vec<SourceBreakdown>> = HashMap::new();
+        for row in &source_rows {
+            let class: String = row.get("class");
+            source_map.entry(class).or_default().push(SourceBreakdown {
+                source: row.get("source"),
+                count: row.get("count"),
+                correct_count: row.get("correct_count"),
+            });
+        }
+
+        Ok(rows
+            .iter()
+            .map(|row| {
+                let class: String = row.get("quiz_class");
+                SubjectPracticeStats {
+                    by_type: type_map.remove(&class).unwrap_or_default(),
+                    by_source: source_map.remove(&class).unwrap_or_default(),
+                    quiz_class: class,
+                    total_count: row.get("total_count"),
+                    correct_count: row.get("correct_count"),
+                    accuracy: row.get::<Option<f64>, _>("accuracy").unwrap_or(0.0),
+                    avg_time_seconds: row.get::<Option<f64>, _>("avg_time_seconds").unwrap_or(0.0),
+                }
+            })
+            .collect())
+    }
+
+    async fn get_practice_summary(
+        &self,
+        user_id: &str,
+        days: i32,
+    ) -> Result<PracticeSummary, AppError> {
+        let days = days.clamp(1, 365);
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        let row = sqlx::query(
+            r#"SELECT
+                COUNT(*) AS total_practiced,
+                COUNT(*) FILTER (WHERE is_correct) AS total_correct,
+                ROUND(COUNT(*) FILTER (WHERE is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS overall_accuracy,
+                ROUND(AVG(time_spent_seconds)::numeric, 1) AS avg_time_seconds,
+                COUNT(DISTINCT DATE(created_at)) AS total_days_practiced
+            FROM practice_records
+            WHERE user_id = $1
+              AND created_at >= NOW() - ($2 || ' days')::INTERVAL"#,
+        )
+        .bind(user_uuid)
+        .bind(days.to_string())
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let total_practiced: i64 = row.get("total_practiced");
+        let total_correct: i64 = row.get("total_correct");
+
+        // Calculate streaks
+        let (current_streak, longest_streak) = if total_practiced == 0 {
+            (0, 0)
+        } else {
+            self.calculate_streaks(user_id).await?
+        };
+
+        Ok(PracticeSummary {
+            total_practiced,
+            total_correct,
+            overall_accuracy: row.get::<Option<f64>, _>("overall_accuracy").unwrap_or(0.0),
+            avg_time_seconds: row.get::<Option<f64>, _>("avg_time_seconds").unwrap_or(0.0),
+            current_streak,
+            longest_streak,
+            total_days_practiced: row.get("total_days_practiced"),
+        })
+    }
+
+    async fn get_practice_calendar(
+        &self,
+        user_id: &str,
+        year: i32,
+    ) -> Result<Vec<CalendarDayData>, AppError> {
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        let rows = sqlx::query(
+            r#"SELECT
+                DATE(created_at) AS date,
+                COUNT(*) AS count,
+                COUNT(*) FILTER (WHERE is_correct) AS correct_count
+            FROM practice_records
+            WHERE user_id = $1
+              AND EXTRACT(YEAR FROM created_at) = $2
+            GROUP BY DATE(created_at)
+            ORDER BY date"#,
+        )
+        .bind(user_uuid)
+        .bind(year)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(rows
+            .iter()
+            .map(|row| CalendarDayData {
+                date: row.get("date"),
+                count: row.get("count"),
+                correct_count: row.get("correct_count"),
+            })
+            .collect())
     }
 
     async fn get_practice_records(
@@ -684,6 +960,149 @@ impl QuizRepository for PostgresRepository {
             })
             .collect())
     }
+
+    async fn get_discussion_comments(
+        &self,
+        quiz_id: &str,
+        page: i32,
+        limit: i32,
+    ) -> Result<(Vec<DiscussionCommentWithReplies>, i64), AppError> {
+        let offset = (page - 1).max(0) * limit;
+
+        let total: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM discussion_comments WHERE quiz_id = $1 AND parent_id IS NULL",
+        )
+        .bind(quiz_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let rows = sqlx::query(
+            r#"SELECT dc.id, dc.quiz_id, dc.user_id, u.username, u.avatar_url,
+                      dc.parent_id, dc.content, dc.created_at, dc.updated_at
+               FROM discussion_comments dc
+               JOIN users u ON dc.user_id::text = u.id::text
+               WHERE dc.quiz_id = $1 AND dc.parent_id IS NULL
+               ORDER BY dc.created_at DESC
+               LIMIT $2 OFFSET $3"#,
+        )
+        .bind(quiz_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let top_level_ids: Vec<String> = rows.iter().map(|r| r.get::<String, _>("id")).collect();
+
+        let mut replies_map: std::collections::HashMap<String, Vec<DiscussionCommentWithAuthor>> =
+            std::collections::HashMap::new();
+
+        if !top_level_ids.is_empty() {
+            let placeholders: Vec<String> = top_level_ids
+                .iter()
+                .enumerate()
+                .map(|(i, _)| format!("${}", i + 1))
+                .collect();
+            let query_sql = format!(
+                r#"SELECT dc.id, dc.quiz_id, dc.user_id, u.username, u.avatar_url,
+                          dc.parent_id, dc.content, dc.created_at, dc.updated_at
+                   FROM discussion_comments dc
+                   JOIN users u ON dc.user_id::text = u.id::text
+                   WHERE dc.parent_id::text IN ({})
+                   ORDER BY dc.created_at ASC"#,
+                placeholders.join(",")
+            );
+            let mut query = sqlx::query(&query_sql);
+            for id in &top_level_ids {
+                query = query.bind(id);
+            }
+            let reply_rows = query
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| AppError::Internal(e.to_string()))?;
+
+            for row in &reply_rows {
+                let parent_id: String = row.get("parent_id");
+                let author = row_to_comment_with_author(row);
+                replies_map.entry(parent_id).or_default().push(author);
+            }
+        }
+
+        let results = rows
+            .iter()
+            .map(|row| {
+                let id: String = row.get("id");
+                let comment = row_to_comment_with_author(row);
+                let comment_replies = replies_map.remove(&id).unwrap_or_default();
+                DiscussionCommentWithReplies {
+                    comment,
+                    replies: comment_replies,
+                }
+            })
+            .collect();
+
+        Ok((results, total))
+    }
+
+    async fn create_discussion_comment(
+        &self,
+        quiz_id: &str,
+        user_id: &str,
+        parent_id: Option<&str>,
+        content: &str,
+    ) -> Result<DiscussionCommentWithAuthor, AppError> {
+        let id = uuid::Uuid::new_v4();
+
+        sqlx::query(
+            r#"INSERT INTO discussion_comments (id, quiz_id, user_id, parent_id, content)
+               VALUES ($1, $2, $3::uuid, $4, $5)"#,
+        )
+        .bind(&id)
+        .bind(quiz_id)
+        .bind(user_id)
+        .bind(parent_id)
+        .bind(content)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let row = sqlx::query(
+            r#"SELECT dc.id, dc.quiz_id, dc.user_id, u.username, u.avatar_url,
+                      dc.parent_id, dc.content, dc.created_at, dc.updated_at
+               FROM discussion_comments dc
+               JOIN users u ON dc.user_id::text = u.id::text
+               WHERE dc.id = $1"#,
+        )
+        .bind(&id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(row_to_comment_with_author(&row))
+    }
+
+    async fn delete_discussion_comment(
+        &self,
+        comment_id: &str,
+        user_id: &str,
+    ) -> Result<(), AppError> {
+        let result = sqlx::query(
+            "DELETE FROM discussion_comments WHERE id = $1 AND user_id = $2::uuid",
+        )
+        .bind(comment_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if result.rows_affected() == 0 {
+            return Err(AppError::NotFound(
+                "Comment not found or access denied".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl PostgresRepository {
@@ -722,6 +1141,101 @@ impl PostgresRepository {
             map.insert(id, (quiz_type, quiz_class));
         }
         Ok(map)
+    }
+
+    async fn calculate_streaks(&self, user_id: &str) -> Result<(i32, i32), AppError> {
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        let rows = sqlx::query(
+            r#"SELECT DISTINCT DATE(created_at) AS practice_date
+            FROM practice_records
+            WHERE user_id = $1
+            ORDER BY practice_date DESC"#,
+        )
+        .bind(user_uuid)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        if rows.is_empty() {
+            return Ok((0, 0));
+        }
+
+        let dates: Vec<chrono::NaiveDate> = rows
+            .iter()
+            .filter_map(|r| r.get::<Option<chrono::NaiveDate>, _>("practice_date"))
+            .collect();
+
+        if dates.is_empty() {
+            return Ok((0, 0));
+        }
+
+        let today = chrono::Local::now().date_naive();
+        let yesterday = today - TimeDelta::days(1);
+
+        // Calculate current streak
+        let mut current_streak;
+        if dates[0] == today || dates[0] == yesterday {
+            dates[0]
+        } else {
+            // Most recent practice is older than yesterday — no active streak
+            let mut longest = 0i32;
+            let mut streak = 1i32;
+            for i in 1..dates.len() {
+                if dates[i - 1] - dates[i] == TimeDelta::days(1) {
+                    streak += 1;
+                } else {
+                    longest = longest.max(streak);
+                    streak = 1;
+                }
+            }
+            longest = longest.max(streak);
+            return Ok((0, longest));
+        };
+
+        current_streak = 1;
+        for i in 1..dates.len() {
+            if dates[i - 1] - dates[i] == TimeDelta::days(1) {
+                current_streak += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Calculate longest streak
+        let mut longest_streak = current_streak;
+        let mut streak = 1i32;
+        for i in 1..dates.len() {
+            if dates[i - 1] - dates[i] == TimeDelta::days(1) {
+                streak += 1;
+                longest_streak = longest_streak.max(streak);
+            } else {
+                streak = 1;
+            }
+        }
+
+        Ok((current_streak, longest_streak))
+    }
+}
+
+fn row_to_comment_with_author(row: &sqlx::postgres::PgRow) -> DiscussionCommentWithAuthor {
+    DiscussionCommentWithAuthor {
+        id: row.get("id"),
+        quiz_id: row.get("quiz_id"),
+        user_id: row.get("user_id"),
+        username: row.get("username"),
+        avatar_url: row.get("avatar_url"),
+        parent_id: row.get("parent_id"),
+        content: row.get("content"),
+        created_at: row
+            .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_default(),
+        updated_at: row
+            .try_get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_default(),
     }
 }
 

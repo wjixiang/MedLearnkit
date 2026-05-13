@@ -170,3 +170,88 @@ export interface UpdateProfileRequest {
   username?: string;
   avatar_url?: string;
 }
+
+// Practice statistics types
+
+export interface ClassBreakdown {
+  quiz_class: string;
+  count: number;
+  correct_count: number;
+}
+
+export interface DailyPracticeStats {
+  date: string;
+  total_count: number;
+  correct_count: number;
+  accuracy: number;
+  avg_time_seconds: number;
+  by_class: ClassBreakdown[];
+}
+
+export interface TypeBreakdown {
+  quiz_type: string;
+  count: number;
+  correct_count: number;
+}
+
+export interface SourceBreakdown {
+  source: string;
+  count: number;
+  correct_count: number;
+}
+
+export interface SubjectPracticeStats {
+  quiz_class: string;
+  total_count: number;
+  correct_count: number;
+  accuracy: number;
+  avg_time_seconds: number;
+  by_type: TypeBreakdown[];
+  by_source: SourceBreakdown[];
+}
+
+export interface PracticeSummary {
+  total_practiced: number;
+  total_correct: number;
+  overall_accuracy: number;
+  avg_time_seconds: number;
+  current_streak: number;
+  longest_streak: number;
+  total_days_practiced: number;
+}
+
+export interface CalendarDayData {
+  date: string;
+  count: number;
+  correct_count: number;
+}
+
+// Discussion types
+
+export interface DiscussionComment {
+  id: string;
+  quiz_id: string;
+  user_id: string;
+  username: string | null;
+  avatar_url: string | null;
+  parent_id: string | null;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscussionCommentWithReplies extends DiscussionComment {
+  replies: DiscussionComment[];
+}
+
+export interface CommentsListResponse {
+  data: DiscussionCommentWithReplies[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreateCommentRequest {
+  content: string;
+  parent_id?: string;
+}

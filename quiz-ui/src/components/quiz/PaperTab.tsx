@@ -12,7 +12,7 @@ interface PaperTabProps {
 
 type PaperCategory = "public" | "my";
 
-export function PaperTab({}: PaperTabProps) {
+export function PaperTab({ onStartPractice }: PaperTabProps) {
   const [category, setCategory] = useState<PaperCategory>("public");
   const [publicPapers, setPublicPapers] = useState<PublicPaper[]>([]);
   const [myPapers, setMyPapers] = useState<UserPaper[]>([]);
@@ -49,7 +49,14 @@ export function PaperTab({}: PaperTabProps) {
         ...q,
         selectedAt: Date.now() + i,
       }));
-      dispatch({ type: "LOAD_PAPER_PREVIEW", payload: quizzesWithDetails });
+      dispatch({
+        type: "LOAD_PAPER",
+        payload: {
+          paper: { id: paper.id, title: paper.title, quiz_ids: paper.quiz_ids, created_at: paper.created_at },
+          quizzes: quizzesWithDetails,
+        },
+      });
+      onStartPractice();
     } catch (error) {
       console.error("Failed to load paper quizzes:", error);
     }
@@ -207,7 +214,7 @@ export function PaperTab({}: PaperTabProps) {
       {/* Footer hint */}
       <div className="bg-card border-t px-4 py-3 shrink-0">
         <p className="text-xs text-muted-foreground text-center">
-          选择试卷后点击「抽取练习」开始做题，系统将从试卷中随机抽取题目进行练习
+          选择试卷后点击「抽取练习」开始做题
         </p>
       </div>
     </div>

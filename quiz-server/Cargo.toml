@@ -19,6 +19,7 @@ utoipa = { version = "5.5.0", features = ["time"] }
 utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"] }
 async-trait = "0.1"
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
+chrono = "0.4"
 argon2 = "0.5"
 jsonwebtoken = "9"
 

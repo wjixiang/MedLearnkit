@@ -4,14 +4,14 @@ import { useQuizPaper } from "../contexts/QuizPaperContext";
 import { SelectedQuizItem } from "./SelectedQuizItem";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Play, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, Trash2 } from "lucide-react";
 
 interface PaperPreviewProps {
-  onConfirm: () => void;
+  onPracticeStart: () => void;
   onBack: () => void;
 }
 
-export function PaperPreview({ onConfirm, onBack }: PaperPreviewProps) {
+export function PaperPreview({ onPracticeStart, onBack }: PaperPreviewProps) {
   const { state, dispatch } = useQuizPaper();
   const [saving, setSaving] = useState(false);
   const [paperTitle, setPaperTitle] = useState(
@@ -53,7 +53,11 @@ export function PaperPreview({ onConfirm, onBack }: PaperPreviewProps) {
         state.selectedQuizzes.map((q) => q.id),
       );
       dispatch({ type: "ADD_PAPER", payload: paper });
-      onConfirm();
+      dispatch({
+        type: "LOAD_PAPER",
+        payload: { paper, quizzes: state.selectedQuizzes },
+      });
+      onPracticeStart();
     } catch (error) {
       console.error("Failed to save paper:", error);
     } finally {
@@ -149,7 +153,6 @@ export function PaperPreview({ onConfirm, onBack }: PaperPreviewProps) {
             返回选题
           </Button>
           <Button
-            variant="outline"
             className="flex-1"
             onClick={handleSavePaper}
             disabled={state.selectedQuizzes.length === 0 || saving}
@@ -158,14 +161,6 @@ export function PaperPreview({ onConfirm, onBack }: PaperPreviewProps) {
             <span className="ml-2">
               {saving ? "保存中..." : "保存并练习"}
             </span>
-          </Button>
-          <Button
-            className="flex-1"
-            onClick={onConfirm}
-            disabled={state.selectedQuizzes.length === 0}
-          >
-            <Play size={16} />
-            <span className="ml-2">直接练习</span>
           </Button>
         </div>
       </footer>

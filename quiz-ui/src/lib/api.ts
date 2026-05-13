@@ -14,6 +14,13 @@ import type {
   RegisterRequest,
   User,
   UpdateProfileRequest,
+  DailyPracticeStats,
+  SubjectPracticeStats,
+  PracticeSummary,
+  CalendarDayData,
+  DiscussionComment,
+  CommentsListResponse,
+  CreateCommentRequest,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://192.168.123.98:8888";
@@ -205,6 +212,55 @@ export const quizApi = {
     return fetchApi<PracticeRecord[]>("/api/practices", {
       params: { limit },
     });
+  },
+};
+
+export const statsApi = {
+  getDailyStats: (days: number = 30, quizClass?: string) => {
+    return fetchApi<DailyPracticeStats[]>("/api/practices/stats/daily", {
+      params: { days, class: quizClass },
+    });
+  },
+
+  getSubjectStats: (days: number = 30) => {
+    return fetchApi<SubjectPracticeStats[]>("/api/practices/stats/subjects", {
+      params: { days },
+    });
+  },
+
+  getSummary: (days: number = 30) => {
+    return fetchApi<PracticeSummary>("/api/practices/stats/summary", {
+      params: { days },
+    });
+  },
+
+  getCalendar: (year?: number) => {
+    return fetchApi<CalendarDayData[]>("/api/practices/stats/calendar", {
+      params: { year },
+    });
+  },
+};
+
+export const discussionApi = {
+  getComments: (quizId: string, page = 1, limit = 20) => {
+    return fetchApi<CommentsListResponse>(
+      `/api/quizzes/${quizId}/comments`,
+      { params: { page, limit } },
+    );
+  },
+
+  createComment: (quizId: string, data: CreateCommentRequest) => {
+    return fetchApi<DiscussionComment>(`/api/quizzes/${quizId}/comments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteComment: (quizId: string, commentId: string) => {
+    return fetchApi<{ success: boolean }>(
+      `/api/quizzes/${quizId}/comments/${commentId}`,
+      { method: "DELETE" },
+    );
   },
 };
 

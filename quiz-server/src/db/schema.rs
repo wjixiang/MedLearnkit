@@ -114,3 +114,98 @@ pub struct PracticeRecord {
     pub time_spent_seconds: i32,
     pub created_at: String,
 }
+
+// Practice statistics types
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DailyPracticeStats {
+    pub date: String,
+    pub total_count: i64,
+    pub correct_count: i64,
+    pub accuracy: f64,
+    pub avg_time_seconds: f64,
+    pub by_class: Vec<ClassBreakdown>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ClassBreakdown {
+    pub quiz_class: String,
+    pub count: i64,
+    pub correct_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SubjectPracticeStats {
+    pub quiz_class: String,
+    pub total_count: i64,
+    pub correct_count: i64,
+    pub accuracy: f64,
+    pub avg_time_seconds: f64,
+    pub by_type: Vec<TypeBreakdown>,
+    pub by_source: Vec<SourceBreakdown>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TypeBreakdown {
+    pub quiz_type: String,
+    pub count: i64,
+    pub correct_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct SourceBreakdown {
+    pub source: String,
+    pub count: i64,
+    pub correct_count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PracticeSummary {
+    pub total_practiced: i64,
+    pub total_correct: i64,
+    pub overall_accuracy: f64,
+    pub avg_time_seconds: f64,
+    pub current_streak: i32,
+    pub longest_streak: i32,
+    pub total_days_practiced: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CalendarDayData {
+    pub date: String,
+    pub count: i64,
+    pub correct_count: i64,
+}
+
+// Discussion types
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscussionComment {
+    pub id: String,
+    pub quiz_id: String,
+    pub user_id: String,
+    pub parent_id: Option<String>,
+    pub content: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscussionCommentWithAuthor {
+    pub id: String,
+    pub quiz_id: String,
+    pub user_id: String,
+    pub username: Option<String>,
+    pub avatar_url: Option<String>,
+    pub parent_id: Option<String>,
+    pub content: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscussionCommentWithReplies {
+    #[serde(flatten)]
+    pub comment: DiscussionCommentWithAuthor,
+    pub replies: Vec<DiscussionCommentWithAuthor>,
+}

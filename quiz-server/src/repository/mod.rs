@@ -1,6 +1,6 @@
 pub mod postgres;
 
-use crate::db::schema::{Quiz, QuizTag, QuizWithDetails, QuizFilterMeta, Paper, PublicPaper, UserPaper, PracticeRecord};
+use crate::db::schema::{Quiz, QuizTag, QuizWithDetails, QuizFilterMeta, Paper, PublicPaper, UserPaper, PracticeRecord, DailyPracticeStats, SubjectPracticeStats, PracticeSummary, CalendarDayData, DiscussionCommentWithAuthor, DiscussionCommentWithReplies};
 use crate::error::AppError;
 use crate::services::quiz_service::QuizFilter;
 
@@ -50,6 +50,54 @@ pub trait QuizRepository: Send + Sync {
         user_id: &str,
         limit: i32,
     ) -> Result<Vec<PracticeRecord>, AppError>;
+
+    // Practice statistics
+    async fn get_practice_daily_stats(
+        &self,
+        user_id: &str,
+        days: i32,
+        quiz_class: Option<&str>,
+    ) -> Result<Vec<DailyPracticeStats>, AppError>;
+
+    async fn get_practice_subject_stats(
+        &self,
+        user_id: &str,
+        days: i32,
+    ) -> Result<Vec<SubjectPracticeStats>, AppError>;
+
+    async fn get_practice_summary(
+        &self,
+        user_id: &str,
+        days: i32,
+    ) -> Result<PracticeSummary, AppError>;
+
+    async fn get_practice_calendar(
+        &self,
+        user_id: &str,
+        year: i32,
+    ) -> Result<Vec<CalendarDayData>, AppError>;
+
+    // Discussion comments
+    async fn get_discussion_comments(
+        &self,
+        quiz_id: &str,
+        page: i32,
+        limit: i32,
+    ) -> Result<(Vec<DiscussionCommentWithReplies>, i64), AppError>;
+
+    async fn create_discussion_comment(
+        &self,
+        quiz_id: &str,
+        user_id: &str,
+        parent_id: Option<&str>,
+        content: &str,
+    ) -> Result<DiscussionCommentWithAuthor, AppError>;
+
+    async fn delete_discussion_comment(
+        &self,
+        comment_id: &str,
+        user_id: &str,
+    ) -> Result<(), AppError>;
 }
 
 pub type FilterMeta = QuizFilterMeta;

@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { User, LogOut, Shield } from "lucide-react";
+import { User, LogOut, Shield, BarChart3 } from "lucide-react";
 
 export function UserDropdown() {
   const { user, logout } = useAuth();
@@ -60,6 +60,10 @@ export function UserDropdown() {
         <DropdownMenuSeparator />
 
         <DropdownMenuGroup>
+          <DropdownMenuItem onClick={() => navigate("/stats")}>
+            <BarChart3 />
+            练习统计
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate("/settings/profile")}>
             <User />
             个人设置

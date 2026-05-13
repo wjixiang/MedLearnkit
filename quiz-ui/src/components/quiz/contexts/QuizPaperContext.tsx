@@ -30,7 +30,6 @@ type QuizPaperAction =
   | { type: "CLEAR_ALL" }
   | { type: "REORDER"; payload: { from: number; to: number } }
   | { type: "TO_PREVIEW" }
-  | { type: "TO_PRACTICE" }
   | { type: "BACK_TO_SELECT" }
   | { type: "BACK_TO_PREVIEW" }
   | { type: "SET_INDEX"; payload: number }
@@ -38,7 +37,6 @@ type QuizPaperAction =
   | { type: "ADD_PAPER"; payload: QuizPaper }
   | { type: "REMOVE_PAPER"; payload: string }
   | { type: "LOAD_PAPER"; payload: { paper: QuizPaper; quizzes: SelectedQuiz[] } }
-  | { type: "LOAD_PAPER_PREVIEW"; payload: SelectedQuiz[] }
   | { type: "HYDRATE"; payload: Partial<QuizPaperState> };
 
 const MAX_SELECT = 50;
@@ -106,11 +104,6 @@ function quizPaperReducer(
         ...state,
         view: "preview",
       };
-    case "TO_PRACTICE":
-      return {
-        ...state,
-        view: "practice",
-      };
     case "BACK_TO_SELECT":
       return {
         ...state,
@@ -151,15 +144,9 @@ function quizPaperReducer(
           quizzes: action.payload.quizzes,
           created_at: action.payload.paper.created_at,
         },
+        selectedQuizzes: action.payload.quizzes,
         view: "practice",
         currentIndex: 0,
-      };
-    case "LOAD_PAPER_PREVIEW":
-      return {
-        ...state,
-        selectedQuizzes: action.payload,
-        view: "preview",
-        currentPaper: null,
       };
     case "HYDRATE":
       return {

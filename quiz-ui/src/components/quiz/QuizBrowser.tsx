@@ -137,11 +137,6 @@ function QuizBrowserContent() {
     dispatch({ type: "CLEAR_ALL" });
   };
 
-  const handleStartPractice = () => {
-    dispatch({ type: "TO_PRACTICE" });
-    setBrowserView("practice");
-  };
-
   const handleBackToSelect = () => {
     dispatch({ type: "BACK_TO_SELECT" });
     setBrowserView("select");
@@ -168,7 +163,7 @@ function QuizBrowserContent() {
   }
 
   if (browserView === "preview") {
-    return <PaperPreview onConfirm={handleStartPractice} onBack={handleBackToSelect} />;
+    return <PaperPreview onPracticeStart={() => setBrowserView("practice")} onBack={handleBackToSelect} />;
   }
 
   return (
@@ -210,7 +205,7 @@ function QuizBrowserContent() {
         ) : (
           <PaperTab
             onBack={handleBackToSelect}
-            onStartPractice={handleStartPractice}
+            onStartPractice={() => setBrowserView("practice")}
           />
         )}
       </TabLayout>

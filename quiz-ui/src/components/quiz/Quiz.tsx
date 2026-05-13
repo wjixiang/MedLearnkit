@@ -6,6 +6,7 @@ import { Check, X } from "lucide-react";
 import { useQuizLogic } from "./hooks/useQuizLogic";
 import { OptionItem } from "./components/OptionItem";
 import { AnswerSection } from "./components/AnswerSection";
+import { DiscussionCard } from "./components/DiscussionCard";
 import { quizApi } from "@/lib/api";
 
 interface QuizProps {
@@ -258,6 +259,7 @@ export function Quiz({
               isCorrect={isCorrect}
               subAnswers={subAnswers}
             />
+            <DiscussionCard quizId={quiz.id} />
           </div>
         )}
 
@@ -366,6 +368,7 @@ export function Quiz({
               isCorrect={isCorrect}
               subAnswers={subAnswers}
             />
+            <DiscussionCard quizId={quiz.id} />
           </div>
         )}
 
@@ -420,8 +423,9 @@ export function Quiz({
             quiz={quiz}
             submitted={submitted}
             isCorrect={isCorrect}
-            userAnswer={selected[0]}
+            userAnswer={isXType ? selected : selected[0]}
           />
+          <DiscussionCard quizId={quiz.id} />
         </div>
       )}
 

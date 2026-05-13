@@ -24,7 +24,7 @@ use crate::auth::handlers::{get_profile, login, register, update_profile};
 use crate::auth::middleware::jwt_auth;
 use crate::config::Config;
 use crate::db::pool::create_postgres_pool;
-use crate::handlers::{paper, practice, quiz, tag};
+use crate::handlers::{discussion, paper, practice, quiz, stats, tag};
 use crate::openapi::ApiDoc;
 use crate::repository::postgres::PostgresRepository;
 use crate::state::AppState;
@@ -82,6 +82,19 @@ async fn main() {
             "/api/quizzes/{quiz_id}/tags/{tag_id}",
             delete(tag::delete_tag),
         )
+        // Discussion endpoints (read public, write protected)
+        .route(
+            "/api/quizzes/{quiz_id}/comments",
+            get(discussion::get_comments),
+        )
+        .route(
+            "/api/quizzes/{quiz_id}/comments",
+            post(discussion::create_comment.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/quizzes/{quiz_id}/comments/{comment_id}",
+            delete(discussion::delete_comment.layer(middleware::from_fn(jwt_auth))),
+        )
         // Paper endpoints (legacy)
         .route("/api/papers", post(paper::create_paper))
         .route("/api/papers", get(paper::get_papers))
@@ -115,6 +128,23 @@ async fn main() {
         .route(
             "/api/practices",
             get(practice::get_practice_records.layer(middleware::from_fn(jwt_auth))),
+        )
+        // Practice statistics endpoints (protected)
+        .route(
+            "/api/practices/stats/daily",
+            get(stats::get_daily_stats.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/practices/stats/subjects",
+            get(stats::get_subject_stats.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/practices/stats/summary",
+            get(stats::get_summary.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/practices/stats/calendar",
+            get(stats::get_calendar.layer(middleware::from_fn(jwt_auth))),
         )
         .route_layer(
             CorsLayer::new()

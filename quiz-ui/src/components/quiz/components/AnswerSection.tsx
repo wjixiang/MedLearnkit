@@ -7,7 +7,7 @@ interface AnswerSectionProps {
   submitted: boolean;
   isCorrect: boolean;
   subAnswers?: Record<number, Oid>;
-  userAnswer?: Oid;
+  userAnswer?: Oid | Oid[];
 }
 
 function getOptionText(
@@ -90,7 +90,7 @@ export function AnswerSection({
       : effectiveUserAnswer
         ? [effectiveUserAnswer]
         : [];
-    const correctAnswers = (quiz.answer || "").split("").filter(Boolean);
+    const correctAnswers = (quiz.answer || "").split("").filter((c): c is Oid => "ABCDE".includes(c));
 
     const userAnswerText = userAnswers.length > 0
       ? userAnswers.map((oid) => getOptionText(oid, quiz.options)).join("、")
@@ -139,7 +139,10 @@ export function AnswerSection({
   }
 
   // 普通题型
-  const userAnswerText = getOptionText(effectiveUserAnswer ?? null, quiz.options);
+  const singleAnswer = Array.isArray(effectiveUserAnswer)
+    ? effectiveUserAnswer[0] ?? null
+    : effectiveUserAnswer ?? null;
+  const userAnswerText = getOptionText(singleAnswer, quiz.options);
   const correctAnswerText = getOptionText(quiz.answer, quiz.options);
 
   return (
