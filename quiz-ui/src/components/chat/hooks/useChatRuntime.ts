@@ -4,7 +4,6 @@ import type {
   ChatMessage,
   AgentMessage,
   NodeStatus,
-  ChatReq,
 } from "../types";
 import { useChatConfig } from "../ChatConfig";
 
@@ -203,12 +202,12 @@ export function useChatRuntime(
     async (
       input: string,
       selectedSource: string = "vault",
-      analysisLLMId: string = "",
-      workerLLMId: string = "",
-      useHyDE: boolean = false,
-      useHybrid: boolean = false,
-      selectedModel: string = config.defaults.model,
-      useReasoning: boolean = config.defaults.useReasoning,
+      _analysisLLMId?: string,
+      _workerLLMId?: string,
+      _useHyDE?: boolean,
+      _useHybrid?: boolean,
+      selectedModel?: string,
+      _useReasoning?: boolean,
     ) => {
       if (loading) return;
 
@@ -224,36 +223,26 @@ export function useChatRuntime(
         timestamp: new Date(),
         isVisible: true,
         messageType: "content",
-        metadata: { useHyDE, useHybrid, useReasoning },
       };
 
       setMessages((prev) => [...prev, userMessage]);
       abortControllerRef.current = new AbortController();
 
       try {
-        const historyMessages = messages.map((msg) => ({
-          content: msg.content,
-          sender: msg.sender,
-          timestamp: msg.timestamp,
-          isVisible: msg.isVisible,
-          sources: msg.sources,
-          messageType: msg.messageType || "content",
+        const history = messages.map((msg) => ({
+          role: msg.sender === "user" ? "user" : "assistant",
+          content:
+            typeof msg.content === "string"
+              ? msg.content
+              : String(msg.content),
         }));
 
-        const requestBody: ChatReq = {
-          mode,
-          messages: [...historyMessages, userMessage],
-          analysisLLMId,
-          workerLLMId,
-          selectedSource,
-          rag_config: {
-            useHyDE,
-            useHybrid,
-            useReasoning,
-            topK: 10,
-            language: "zh",
-            llm: selectedModel,
-          },
+        const requestBody = {
+          notebook_id: selectedSource,
+          query: input,
+          history,
+          top_k: 5,
+          model: selectedModel || config.defaults.model,
         };
 
         const headers: Record<string, string> = {
@@ -278,7 +267,7 @@ export function useChatRuntime(
             const errorText = await response.text();
             if (errorText) {
               const errorData = JSON.parse(errorText);
-              errorMessage = errorData.error || errorMessage;
+              errorMessage = errorData.detail || errorData.error || errorMessage;
             }
           } catch {
             errorMessage = `Server error: ${response.status} ${response.statusText}`;

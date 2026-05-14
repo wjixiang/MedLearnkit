@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { BookOpen, Filter } from "lucide-react";
+import { BookOpen, Filter, X, SlidersHorizontal } from "lucide-react";
 import { quizApi } from "@/lib/api";
 import type { QuizFilter, QuizFilterMeta, QuizPractice } from "@/lib/types";
 import { FilterPanel } from "./FilterPanel";
@@ -254,6 +254,9 @@ function FilterTabContent({
   onGeneratePaper,
   onClearAll,
 }: FilterTabContentProps) {
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const hasActiveFilters = [filter.classes, filter.types, filter.units, filter.sources].some(Boolean);
+
   return (
     <>
       {/* Select Toolbar */}
@@ -269,11 +272,64 @@ function FilterTabContent({
         onSelectRandomN={onSelectRandomN}
       />
 
+      {/* Mobile filter button */}
+      <div className="md:hidden shrink-0 border-b bg-card px-4 py-2 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">共 {totalCount.toLocaleString()} 题</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setMobileFilterOpen(true)}
+          className="gap-1.5"
+        >
+          <SlidersHorizontal size={14} />
+          筛选
+          {hasActiveFilters && (
+            <span className="ml-0.5 h-4 w-4 rounded-full bg-primary text-[10px] text-primary-foreground flex items-center justify-center">
+              {[filter.classes, filter.types, filter.units, filter.sources].filter(Boolean).length}
+            </span>
+          )}
+        </Button>
+      </div>
+
+      {/* Mobile filter drawer overlay */}
+      {mobileFilterOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileFilterOpen(false)}
+          />
+          <div className="absolute inset-y-0 left-0 w-[85vw] max-w-sm shadow-xl animate-in slide-in-from-left duration-200">
+            <div className="h-full bg-card flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b">
+                <h3 className="font-medium text-sm">筛选条件</h3>
+                <button
+                  onClick={() => setMobileFilterOpen(false)}
+                  className="p-1 rounded-md hover:bg-muted"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <FilterPanel
+                  meta={meta}
+                  filter={filter}
+                  onFilterChange={(f) => {
+                    onFilterChange(f);
+                    setMobileFilterOpen(false);
+                  }}
+                  totalCount={totalCount}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main content - Left sidebar + Right list */}
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex">
-          {/* Left sidebar - Filter */}
-          <div className="w-72 shrink-0 overflow-hidden">
+          {/* Left sidebar - Filter (desktop only) */}
+          <div className="hidden md:block w-72 shrink-0 overflow-hidden">
             <FilterPanel
               meta={meta}
               filter={filter}
@@ -283,13 +339,13 @@ function FilterTabContent({
           </div>
 
           {/* Divider */}
-          <div className="w-px bg-border" />
+          <div className="hidden md:block w-px bg-border" />
 
           {/* Right side - Quiz list */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="border rounded-lg m-4 bg-card overflow-hidden flex flex-col flex-1 min-h-0">
-              {/* List header */}
-              <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b text-xs text-muted-foreground font-medium shrink-0">
+            <div className="border rounded-lg md:m-4 bg-card overflow-hidden flex flex-col flex-1 min-h-0">
+              {/* List header (desktop only) */}
+              <div className="hidden md:flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b text-xs text-muted-foreground font-medium shrink-0">
                 <span className="w-6 text-center">#</span>
                 <span className="w-4" />
                 <span className="w-12 text-center">题型</span>
@@ -302,16 +358,18 @@ function FilterTabContent({
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto min-h-0">
                 {loading ? (
-                  <div className="divide-y">
+                  <div className="divide-y md:divide-y-0 md:divide-y">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <div key={i} className="flex items-center gap-3 px-4 py-3 animate-pulse">
-                        <span className="w-6 h-3 bg-muted rounded" />
-                        <span className="w-4 h-4 bg-muted rounded" />
-                        <span className="w-12 h-4 bg-muted rounded" />
-                        <span className="w-14 h-4 bg-muted rounded" />
-                        <span className="flex-1 h-4 bg-muted rounded" />
-                        <span className="w-28 h-4 bg-muted rounded" />
-                        <span className="w-12 h-4 bg-muted rounded" />
+                      <div key={i} className="p-4 md:p-0 md:flex md:items-center md:gap-3 md:px-4 md:py-3 animate-pulse space-y-2 md:space-y-0">
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-3 bg-muted rounded" />
+                          <span className="w-4 h-4 bg-muted rounded" />
+                          <span className="w-12 h-4 bg-muted rounded" />
+                          <span className="w-14 h-4 bg-muted rounded md:hidden" />
+                        </div>
+                        <span className="block w-full h-4 bg-muted rounded" />
+                        <span className="hidden md:block w-28 h-4 bg-muted rounded" />
+                        <span className="hidden md:block w-12 h-4 bg-muted rounded" />
                       </div>
                     ))}
                   </div>
@@ -320,7 +378,7 @@ function FilterTabContent({
                     暂无匹配的题目
                   </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="md:divide-y">
                     {quizList.map((quiz, i) => (
                       <QuizSelectCard
                         key={quiz.id}

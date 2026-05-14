@@ -14,6 +14,15 @@ interface QuizProps {
   currentQuizIndex: number;
   thisQuizIndex: number;
   onStateChange?: (quizId: string, state: { submitted: boolean; isCorrect: boolean }) => void;
+  onPaperAnswer?: (result: {
+    quizId: string;
+    quizType: string;
+    quizClass: string;
+    userAnswer: string | null;
+    isCorrect: boolean;
+    timeSpentSeconds: number;
+  }) => void;
+  initialState?: { submitted: boolean; isCorrect: boolean; userAnswer?: string | null };
 }
 
 export function Quiz({
@@ -21,6 +30,8 @@ export function Quiz({
   currentQuizIndex,
   thisQuizIndex,
   onStateChange,
+  onPaperAnswer,
+  initialState,
 }: QuizProps) {
   const [startTime] = useState(() => Date.now());
 
@@ -43,6 +54,9 @@ export function Quiz({
       });
     } catch (error) {
       console.error("Failed to record practice:", error);
+    }
+    if (onPaperAnswer) {
+      onPaperAnswer(result);
     }
   };
 
@@ -68,12 +82,14 @@ export function Quiz({
     thisQuizIndex,
     onSubmit: handlePracticeRecord,
     startTime,
+    initialState,
   });
 
   useEffect(() => {
     if (submitted && onStateChange) {
       onStateChange(quiz.id, { submitted, isCorrect });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submitted, isCorrect]);
 
   useEffect(() => {

@@ -44,7 +44,7 @@ export function ProfileSettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
       <div>
         <h2 className="text-lg font-semibold">个人设置</h2>
         <p className="text-sm text-muted-foreground">管理你的个人资料和头像</p>
@@ -53,7 +53,7 @@ export function ProfileSettingsPage() {
       <Separator />
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
           <div className="relative group">
             <Avatar size="lg">
               <AvatarImage src={avatarUrl || undefined} alt={username || "用户"} />

@@ -5,7 +5,7 @@ import {
   useEffect,
   type ReactNode,
 } from "react";
-import type { QuizPractice, QuizPaper, SelectedQuiz } from "@/lib/types";
+import type { QuizPractice, QuizPaper, SelectedQuiz, UserPaper } from "@/lib/types";
 
 export type View = "select" | "preview" | "practice";
 
@@ -34,9 +34,9 @@ type QuizPaperAction =
   | { type: "BACK_TO_PREVIEW" }
   | { type: "SET_INDEX"; payload: number }
   | { type: "SET_SAVED_PAPERS"; payload: QuizPaper[] }
-  | { type: "ADD_PAPER"; payload: QuizPaper }
+  | { type: "ADD_PAPER"; payload: QuizPaper | UserPaper }
   | { type: "REMOVE_PAPER"; payload: string }
-  | { type: "LOAD_PAPER"; payload: { paper: QuizPaper; quizzes: SelectedQuiz[] } }
+  | { type: "LOAD_PAPER"; payload: { paper: QuizPaper | UserPaper; quizzes: SelectedQuiz[] } }
   | { type: "HYDRATE"; payload: Partial<QuizPaperState> };
 
 const MAX_SELECT = 50;

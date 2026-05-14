@@ -41,22 +41,22 @@ export function StatsOverview({ summary }: StatsOverviewProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
       {cards.map((card) => (
         <div
           key={card.label}
-          className="rounded-xl border bg-card p-4 transition-shadow hover:shadow-md"
+          className="rounded-xl border bg-card p-3 sm:p-4 transition-shadow hover:shadow-md"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
+            <span className="text-[11px] sm:text-xs font-medium text-muted-foreground">
               {card.label}
             </span>
-            <card.icon className={`h-4 w-4 ${card.color}`} />
+            <card.icon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${card.color}`} />
           </div>
-          <div className="mt-2 text-2xl font-bold tracking-tight">
+          <div className="mt-1.5 sm:mt-2 text-xl sm:text-2xl font-bold tracking-tight">
             {card.value}
           </div>
-          <div className="mt-1 text-xs text-muted-foreground">{card.sub}</div>
+          <div className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs text-muted-foreground">{card.sub}</div>
         </div>
       ))}
     </div>

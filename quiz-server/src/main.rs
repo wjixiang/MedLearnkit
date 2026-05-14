@@ -24,7 +24,7 @@ use crate::auth::handlers::{get_profile, login, register, update_profile};
 use crate::auth::middleware::jwt_auth;
 use crate::config::Config;
 use crate::db::pool::create_postgres_pool;
-use crate::handlers::{discussion, paper, practice, quiz, stats, tag};
+use crate::handlers::{discussion, paper, paper_record, practice, quiz, stats, tag};
 use crate::openapi::ApiDoc;
 use crate::repository::postgres::PostgresRepository;
 use crate::state::AppState;
@@ -128,6 +128,24 @@ async fn main() {
         .route(
             "/api/practices",
             get(practice::get_practice_records.layer(middleware::from_fn(jwt_auth))),
+        )
+        // Paper practice record endpoints (protected)
+        .route(
+            "/api/paper-records",
+            post(paper_record::create_paper_record.layer(middleware::from_fn(jwt_auth)))
+                .get(paper_record::get_paper_records.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/paper-records/{record_id}",
+            put(paper_record::update_paper_record.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/paper-answers",
+            post(paper_record::create_paper_answer.layer(middleware::from_fn(jwt_auth))),
+        )
+        .route(
+            "/api/paper-answers/{record_id}",
+            get(paper_record::get_paper_answers.layer(middleware::from_fn(jwt_auth))),
         )
         // Practice statistics endpoints (protected)
         .route(

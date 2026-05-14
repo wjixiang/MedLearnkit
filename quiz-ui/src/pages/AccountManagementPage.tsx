@@ -50,7 +50,7 @@ export function AccountManagementPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
+    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
       <div>
         <h2 className="text-lg font-semibold">账户管理</h2>
         <p className="text-sm text-muted-foreground">管理你的密码和账户安全设置</p>

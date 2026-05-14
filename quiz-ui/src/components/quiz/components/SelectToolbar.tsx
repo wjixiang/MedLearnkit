@@ -31,17 +31,17 @@ export function SelectToolbar({
 
   return (
     <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b shrink-0">
-      <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Badge variant={isAtLimit ? "destructive" : "secondary"}>
+      <div className="px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Badge variant={isAtLimit ? "destructive" : "secondary"} className="text-xs">
             已选 {selectedCount}/{maxSelect}
           </Badge>
           {isAtLimit && (
-            <span className="text-xs text-muted-foreground">已达上限</span>
+            <span className="text-xs text-muted-foreground hidden sm:inline">已达上限</span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <AdvancedSelectMenu
             quizList={quizList}
             selectedIds={selectedIds}
@@ -56,17 +56,19 @@ export function SelectToolbar({
             size="sm"
             onClick={onClearAll}
             disabled={selectedCount === 0}
+            className="gap-1"
           >
-            <Trash2 size={16} />
-            <span className="ml-2">清空</span>
+            <Trash2 size={14} />
+            <span className="hidden sm:inline">清空</span>
           </Button>
           <Button
             size="sm"
             onClick={onGeneratePaper}
             disabled={selectedCount === 0}
+            className="gap-1"
           >
-            <Check size={16} />
-            <span className="ml-2">生成试卷</span>
+            <Check size={14} />
+            <span className="hidden sm:inline">生成试卷</span>
           </Button>
         </div>
       </div>

@@ -35,8 +35,34 @@ export function SettingsLayout() {
         </div>
       </header>
 
+      {/* Mobile horizontal tabs */}
+      <div className="md:hidden shrink-0 border-b bg-card">
+        <div className="flex">
+          {SETTINGS_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const active = location.pathname === tab.path;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => navigate(tab.path)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                  active
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-hidden flex">
-        <nav className="w-52 shrink-0 border-r bg-card p-3">
+        {/* Desktop sidebar */}
+        <nav className="hidden md:block w-52 shrink-0 border-r bg-card p-3">
           <ul className="space-y-1">
             {SETTINGS_TABS.map((tab) => {
               const Icon = tab.icon;

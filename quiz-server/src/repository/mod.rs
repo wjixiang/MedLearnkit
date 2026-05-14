@@ -1,6 +1,6 @@
 pub mod postgres;
 
-use crate::db::schema::{Quiz, QuizTag, QuizWithDetails, QuizFilterMeta, Paper, PublicPaper, UserPaper, PracticeRecord, DailyPracticeStats, SubjectPracticeStats, PracticeSummary, CalendarDayData, DiscussionCommentWithAuthor, DiscussionCommentWithReplies};
+use crate::db::schema::{Quiz, QuizTag, QuizWithDetails, QuizFilterMeta, Paper, PublicPaper, UserPaper, PracticeRecord, DailyPracticeStats, SubjectPracticeStats, PracticeSummary, CalendarDayData, DiscussionCommentWithAuthor, DiscussionCommentWithReplies, PaperRecord, PaperAnswer};
 use crate::error::AppError;
 use crate::services::quiz_service::QuizFilter;
 
@@ -50,6 +50,48 @@ pub trait QuizRepository: Send + Sync {
         user_id: &str,
         limit: i32,
     ) -> Result<Vec<PracticeRecord>, AppError>;
+
+    // Paper practice records
+    async fn create_paper_record(
+        &self,
+        user_id: &str,
+        paper_id: &str,
+        total_questions: i32,
+    ) -> Result<PaperRecord, AppError>;
+
+    async fn get_paper_records(
+        &self,
+        user_id: &str,
+        paper_id: &str,
+    ) -> Result<Vec<PaperRecord>, AppError>;
+
+    async fn get_paper_record_by_id(
+        &self,
+        id: &str,
+    ) -> Result<Option<PaperRecord>, AppError>;
+
+    async fn update_paper_record(
+        &self,
+        id: &str,
+        correct_count: i32,
+        score: f64,
+        status: &str,
+    ) -> Result<PaperRecord, AppError>;
+
+    async fn create_paper_answer(
+        &self,
+        paper_record_id: &str,
+        quiz_id: &str,
+        user_answer: Option<&str>,
+        is_correct: bool,
+        time_spent_seconds: i32,
+        order_index: i32,
+    ) -> Result<PaperAnswer, AppError>;
+
+    async fn get_paper_answers(
+        &self,
+        paper_record_id: &str,
+    ) -> Result<Vec<PaperAnswer>, AppError>;
 
     // Practice statistics
     async fn get_practice_daily_stats(

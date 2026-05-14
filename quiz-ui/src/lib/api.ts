@@ -9,6 +9,8 @@ import type {
   UserPaper,
   PracticeRecord,
   CreatePracticeRecordRequest,
+  PaperRecord,
+  PaperAnswer,
   AuthResponse,
   LoginRequest,
   RegisterRequest,
@@ -72,6 +74,10 @@ async function fetchApi<T>(
   const headers: HeadersInit = {
     ...fetchOptions.headers,
   };
+
+  if (fetchOptions.body && !(headers as Record<string, string>)["Content-Type"]) {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
 
   const token = getStoredToken();
   if (token) {
@@ -149,7 +155,7 @@ export const quizApi = {
   createPaper: (title: string, quizIds: string[]) => {
     return fetchApi<QuizPaper>("/api/papers", {
       method: "POST",
-      params: {},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, quiz_ids: quizIds }),
     });
   },
@@ -212,6 +218,45 @@ export const quizApi = {
     return fetchApi<PracticeRecord[]>("/api/practices", {
       params: { limit },
     });
+  },
+
+  // Paper practice records
+  createPaperRecord: (paperId: string, totalQuestions: number) => {
+    return fetchApi<PaperRecord>("/api/paper-records", {
+      method: "POST",
+      body: JSON.stringify({ paper_id: paperId, total_questions: totalQuestions }),
+    });
+  },
+
+  getPaperRecords: (paperId: string) => {
+    return fetchApi<PaperRecord[]>("/api/paper-records", {
+      params: { paper_id: paperId },
+    });
+  },
+
+  updatePaperRecord: (recordId: string, correctCount: number, score: number, status: string) => {
+    return fetchApi<PaperRecord>(`/api/paper-records/${recordId}`, {
+      method: "PUT",
+      body: JSON.stringify({ correct_count: correctCount, score, status }),
+    });
+  },
+
+  createPaperAnswer: (data: {
+    paper_record_id: string;
+    quiz_id: string;
+    user_answer: string | null;
+    is_correct: boolean;
+    time_spent_seconds: number;
+    order_index: number;
+  }) => {
+    return fetchApi<PaperAnswer>("/api/paper-answers", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  getPaperAnswers: (recordId: string) => {
+    return fetchApi<PaperAnswer[]>(`/api/paper-answers/${recordId}`);
   },
 };
 
@@ -320,5 +365,19 @@ export const authApi = {
 
   isAuthenticated(): boolean {
     return !!getStoredToken();
+  },
+};
+
+const RAG_BASE = import.meta.env.VITE_RAG_API_URL || "http://localhost:8000";
+
+export const notebookApi = {
+  listNotebooks: () => {
+    return fetch(`${RAG_BASE}/notebooks`).then((r) => r.json());
+  },
+
+  listVersions: (notebookId: string) => {
+    return fetch(`${RAG_BASE}/notebooks/${notebookId}/versions`).then((r) =>
+      r.json(),
+    );
   },
 };

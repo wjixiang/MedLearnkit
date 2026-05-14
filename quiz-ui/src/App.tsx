@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { QuizBrowser } from "@/components/quiz/QuizBrowser";
 import { QuizPaperProvider } from "@/components/quiz/contexts/QuizPaperContext";
 import { LoginPage } from "@/pages/LoginPage";
@@ -8,6 +8,11 @@ import { ProfileSettingsPage } from "@/pages/ProfileSettingsPage";
 import { AccountManagementPage } from "@/pages/AccountManagementPage";
 import { StatsPage } from "@/pages/StatsPage";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  ChatSidebarProvider,
+  ChatSidebar,
+  ChatFab,
+} from "@/components/chat";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -37,6 +42,18 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AuthenticatedLayout() {
+  return (
+    <ProtectedRoute>
+      <ChatSidebarProvider>
+        <Outlet />
+        <ChatSidebar />
+        <ChatFab />
+      </ChatSidebarProvider>
+    </ProtectedRoute>
+  );
+}
+
 export function App() {
   return (
     <Routes>
@@ -56,35 +73,21 @@ export function App() {
           </PublicRoute>
         }
       />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
+      <Route element={<AuthenticatedLayout />}>
+        <Route
+          path="/"
+          element={
             <QuizPaperProvider>
               <QuizBrowser />
             </QuizPaperProvider>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/stats"
-        element={
-          <ProtectedRoute>
-            <StatsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <SettingsLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to="/settings/profile" replace />} />
-        <Route path="profile" element={<ProfileSettingsPage />} />
-        <Route path="account" element={<AccountManagementPage />} />
+          }
+        />
+        <Route path="/stats" element={<StatsPage />} />
+        <Route path="/settings" element={<SettingsLayout />}>
+          <Route index element={<Navigate to="/settings/profile" replace />} />
+          <Route path="profile" element={<ProfileSettingsPage />} />
+          <Route path="account" element={<AccountManagementPage />} />
+        </Route>
       </Route>
     </Routes>
   );

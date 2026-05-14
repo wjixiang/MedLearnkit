@@ -99,7 +99,7 @@ export function PaperTab({ onStartPractice }: PaperTabProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Category tabs and actions */}
-      <div className="bg-card border-b px-4 py-3 flex items-center justify-between shrink-0">
+      <div className="bg-card border-b px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
         <div className="flex gap-1 bg-muted rounded-lg p-1">
           <button
             onClick={() => setCategory("public")}
@@ -148,7 +148,7 @@ export function PaperTab({ onStartPractice }: PaperTabProps) {
                 key={paper.id}
                 className="border rounded-lg p-4 bg-card hover:shadow-sm transition-shadow"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium truncate">{paper.title}</h3>
                     {"description" in paper && paper.description && (
@@ -156,7 +156,7 @@ export function PaperTab({ onStartPractice }: PaperTabProps) {
                         {paper.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
                         <BookOpen size={12} />
                         {paper.quiz_count} 道题
@@ -184,24 +184,23 @@ export function PaperTab({ onStartPractice }: PaperTabProps) {
                     )}
                   </div>
 
-                  <div className="flex gap-2 ml-4 shrink-0">
+                  <div className="flex gap-2 shrink-0">
                     <Button
                       size="sm"
                       onClick={() => handleSelectPaper(paper)}
                       disabled={paper.quiz_count === 0}
+                      className="flex-1 sm:flex-none"
                     >
                       抽取练习
                     </Button>
                     {category === "my" && (
-                      <>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeletePaper(paper.id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeletePaper(paper.id)}
+                      >
+                        <Trash2 size={14} />
+                      </Button>
                     )}
                   </div>
                 </div>

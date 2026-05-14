@@ -82,7 +82,7 @@ export function StatsPage() {
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-4xl space-y-4 p-4">
+        <div className="mx-auto max-w-4xl space-y-3 sm:space-y-4 p-3 sm:p-4">
           {/* Date range selector */}
           <div className="flex items-center justify-between">
             <DateRangeSelector days={days} onChange={setDays} />

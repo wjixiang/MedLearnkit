@@ -26,16 +26,16 @@ export function OptionItem({
   if (submitted) {
     if (selected && correct) {
       conditionalClasses =
-        "bg-[hsl(var(--quiz-user-correct)/0.4)] border-2 border-[hsl(var(--quiz-user-correct))]";
+        "bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500 dark:border-emerald-400";
     } else if (!selected && correct) {
       conditionalClasses =
-        "bg-[hsl(var(--quiz-missed-correct)/0.2)] border border-[hsl(var(--quiz-missed-correct))]";
+        "bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-400 dark:border-emerald-600";
     } else if (selected && !correct) {
       conditionalClasses =
-        "bg-[hsl(var(--quiz-user-incorrect)/0.2)] border-2 border-[hsl(var(--quiz-user-incorrect))]";
+        "bg-red-50 dark:bg-red-950/40 border-2 border-red-500 dark:border-red-400";
     } else {
       conditionalClasses =
-        "bg-[hsl(var(--quiz-default-incorrect)/0.15)] border border-[hsl(var(--quiz-default-incorrect)/0.5)]";
+        "bg-muted/30 dark:bg-muted/20 border border-border/50";
     }
   } else {
     conditionalClasses = `border-border ${selected ? "bg-primary/10 border-2 border-primary" : ""} hover:bg-muted hover:border-dashed`;
@@ -53,18 +53,18 @@ export function OptionItem({
             (correct ? (
               <Check
                 size={16}
-                className="text-[hsl(var(--quiz-user-correct))] font-bold"
+                className="text-emerald-600 dark:text-emerald-400 font-bold"
               />
             ) : (
               <X
                 size={16}
-                className="text-[hsl(var(--quiz-user-incorrect))] font-bold"
+                className="text-red-600 dark:text-red-400 font-bold"
               />
             ))}
           {!selected && correct && (
             <Check
               size={16}
-              className="text-[hsl(var(--quiz-missed-correct))] font-bold"
+              className="text-emerald-500 dark:text-emerald-500 font-bold"
             />
           )}
         </div>

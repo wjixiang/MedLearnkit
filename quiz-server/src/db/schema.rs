@@ -177,6 +177,34 @@ pub struct CalendarDayData {
     pub correct_count: i64,
 }
 
+// Paper practice record types
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PaperRecord {
+    pub id: String,
+    pub user_id: String,
+    pub paper_id: String,
+    pub score: Option<f64>,
+    pub total_questions: i32,
+    pub correct_count: i32,
+    pub status: String,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct PaperAnswer {
+    pub id: String,
+    pub paper_record_id: String,
+    pub quiz_id: String,
+    pub user_answer: Option<String>,
+    pub is_correct: bool,
+    pub time_spent_seconds: i32,
+    pub order_index: i32,
+    pub created_at: String,
+}
+
 // Discussion types
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

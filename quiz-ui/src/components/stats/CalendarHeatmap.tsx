@@ -85,14 +85,14 @@ export function CalendarHeatmap({ data, year }: CalendarHeatmapProps) {
   }, [data, year, maxValue]);
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-3 sm:p-4">
       <h3 className="mb-3 text-sm font-semibold">
         {year} 年练习日历
       </h3>
       <ReactECharts
         echarts={echarts}
         option={option}
-        style={{ height: 200 }}
+        style={{ height: 180 }}
         notMerge
       />
     </div>

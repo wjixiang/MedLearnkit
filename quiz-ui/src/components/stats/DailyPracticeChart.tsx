@@ -136,9 +136,9 @@ export function DailyPracticeChart({
       },
       grid: {
         top: 10,
-        right: 60,
+        right: 45,
         bottom: 80,
-        left: 50,
+        left: 40,
         containLabel: false,
       },
       xAxis: {
@@ -183,12 +183,12 @@ export function DailyPracticeChart({
   }, [data, selectedClass]);
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-3 sm:p-4">
       <h3 className="mb-3 text-sm font-semibold">每日练习统计</h3>
       <ReactECharts
         echarts={echarts}
         option={option}
-        style={{ height: 320 }}
+        style={{ height: 280 }}
         notMerge
       />
     </div>

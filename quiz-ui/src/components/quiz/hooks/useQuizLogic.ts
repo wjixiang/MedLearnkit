@@ -14,6 +14,7 @@ interface UseQuizLogicProps {
     timeSpentSeconds: number;
   }) => void;
   startTime?: number;
+  initialState?: { submitted: boolean; isCorrect: boolean; userAnswer?: string | null };
 }
 
 export function useQuizLogic({
@@ -22,13 +23,17 @@ export function useQuizLogic({
   thisQuizIndex,
   onSubmit,
   startTime,
+  initialState,
 }: UseQuizLogicProps) {
   const isXType = quiz.type === "X";
+  const restoredAnswer = initialState?.userAnswer;
   const [selected, setSelected] = useState<Oid[]>(
-    isXType ? [] : (quiz.userAnswer ? [quiz.userAnswer as Oid] : []),
+    isXType
+      ? (restoredAnswer ? (restoredAnswer.split("") as Oid[]) : [])
+      : (restoredAnswer ? [restoredAnswer as Oid] : (quiz.userAnswer ? [quiz.userAnswer as Oid] : [])),
   );
-  const [submitted, setSubmitted] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
+  const [submitted, setSubmitted] = useState(initialState?.submitted ?? false);
+  const [isCorrect, setIsCorrect] = useState(initialState?.isCorrect ?? false);
   const [subAnswers, setSubAnswers] = useState<Record<number, Oid>>(
     quiz.subAnswers ?? {},
   );
@@ -119,8 +124,13 @@ export function useQuizLogic({
     };
   }, [submitted, isCorrect, selected, isXType, subAnswers]);
 
-  // Call onSubmit callback when answer is submitted
+  // Call onSubmit callback when answer is submitted (skip for restored state)
+  const isRestoredRef = useRef(initialState?.submitted ?? false);
   useEffect(() => {
+    if (isRestoredRef.current) {
+      isRestoredRef.current = false;
+      return;
+    }
     if (submitted && onSubmit) {
       const timeSpentSeconds = startTime
         ? Math.round((Date.now() - startTime) / 1000)

@@ -261,8 +261,8 @@ impl QuizRepository for PostgresRepository {
                 value: row.get("value"),
                 tag_type: row.get("type"),
                 created_at: row
-                    .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                    .map(|t| t.to_string())
+                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .map(|t| t.to_rfc3339())
                     .unwrap_or_default(),
             })
             .collect())
@@ -373,8 +373,8 @@ impl QuizRepository for PostgresRepository {
     // Public papers
     async fn get_public_papers(&self) -> Result<Vec<PublicPaper>, AppError> {
         let rows = sqlx::query(
-            r#"SELECT id, title, description, quiz_ids, quiz_count, source, tags, "createdAt"
-               FROM public_papers ORDER BY "createdAt" DESC"#,
+            r#"SELECT id, title, description, quiz_ids, quiz_count, source, tags, created_at
+               FROM public_papers ORDER BY created_at DESC"#,
         )
         .fetch_all(&self.pool)
         .await
@@ -389,7 +389,7 @@ impl QuizRepository for PostgresRepository {
                 let tags_json: serde_json::Value = row.get("tags");
                 let tags: Vec<String> = serde_json::from_value(tags_json).unwrap_or_default();
                 PublicPaper {
-                    id: row.get("id"),
+                    id: row.get::<uuid::Uuid, _>("id").to_string(),
                     title: row.get("title"),
                     description: row.get("description"),
                     quiz_ids,
@@ -397,8 +397,8 @@ impl QuizRepository for PostgresRepository {
                     source: row.get("source"),
                     tags,
                     created_at: row
-                        .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                        .map(|t| t.to_string())
+                        .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                        .map(|t| t.to_rfc3339())
                         .unwrap_or_default(),
                 }
             })
@@ -407,8 +407,8 @@ impl QuizRepository for PostgresRepository {
 
     async fn get_public_paper_by_id(&self, id: &str) -> Result<Option<PublicPaper>, AppError> {
         let row = sqlx::query(
-            r#"SELECT id, title, description, quiz_ids, quiz_count, source, tags, "createdAt"
-               FROM public_papers WHERE id = $1"#,
+            r#"SELECT id, title, description, quiz_ids, quiz_count, source, tags, created_at
+               FROM public_papers WHERE id = $1::uuid"#,
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -422,7 +422,7 @@ impl QuizRepository for PostgresRepository {
             let tags_json: serde_json::Value = r.get("tags");
             let tags: Vec<String> = serde_json::from_value(tags_json).unwrap_or_default();
             PublicPaper {
-                id: r.get("id"),
+                id: r.get::<uuid::Uuid, _>("id").to_string(),
                 title: r.get("title"),
                 description: r.get("description"),
                 quiz_ids,
@@ -430,8 +430,8 @@ impl QuizRepository for PostgresRepository {
                 source: r.get("source"),
                 tags,
                 created_at: r
-                    .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                    .map(|t| t.to_string())
+                    .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                    .map(|t| t.to_rfc3339())
                     .unwrap_or_default(),
             }
         }))
@@ -440,8 +440,8 @@ impl QuizRepository for PostgresRepository {
     // User papers
     async fn get_user_papers(&self, user_id: &str) -> Result<Vec<UserPaper>, AppError> {
         let rows = sqlx::query(
-            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, "createdAt"
-               FROM user_papers WHERE user_id = $1 ORDER BY "createdAt" DESC"#,
+            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, created_at
+               FROM user_papers WHERE user_id = $1::uuid ORDER BY created_at DESC"#,
         )
         .bind(user_id)
         .fetch_all(&self.pool)
@@ -455,15 +455,15 @@ impl QuizRepository for PostgresRepository {
                 let quiz_ids: Vec<String> =
                     serde_json::from_value(quiz_ids_json).unwrap_or_default();
                 UserPaper {
-                    id: row.get("id"),
-                    user_id: row.get("user_id"),
+                    id: row.get::<uuid::Uuid, _>("id").to_string(),
+                    user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
                     title: row.get("title"),
                     description: row.get("description"),
                     quiz_ids,
                     quiz_count: row.get("quiz_count"),
                     created_at: row
-                        .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                        .map(|t| t.to_string())
+                        .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                        .map(|t| t.to_rfc3339())
                         .unwrap_or_default(),
                 }
             })
@@ -476,13 +476,13 @@ impl QuizRepository for PostgresRepository {
         title: &str,
         quiz_ids: &[String],
     ) -> Result<UserPaper, AppError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = uuid::Uuid::new_v4();
         let quiz_ids_json = serde_json::to_value(quiz_ids).unwrap_or(serde_json::Value::Array(vec![]));
         let quiz_count = quiz_ids.len() as i32;
 
         sqlx::query(
-            r#"INSERT INTO user_papers (id, user_id, title, quiz_ids, quiz_count, "createdAt")
-               VALUES ($1, $2, $3, $4, $5, NOW())"#,
+            r#"INSERT INTO user_papers (id, user_id, title, quiz_ids, quiz_count, created_at)
+               VALUES ($1, $2::uuid, $3, $4, $5, NOW())"#,
         )
         .bind(&id)
         .bind(user_id)
@@ -494,7 +494,7 @@ impl QuizRepository for PostgresRepository {
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
         let row = sqlx::query(
-            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, "createdAt"
+            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, created_at
                FROM user_papers WHERE id = $1"#,
         )
         .bind(&id)
@@ -507,15 +507,15 @@ impl QuizRepository for PostgresRepository {
             serde_json::from_value(quiz_ids_json_out).unwrap_or_default();
 
         Ok(UserPaper {
-            id: row.get("id"),
-            user_id: row.get("user_id"),
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
             title: row.get("title"),
             description: row.get("description"),
             quiz_ids: quiz_ids_out,
             quiz_count: row.get("quiz_count"),
             created_at: row
-                .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                .map(|t| t.to_string())
+                .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         })
     }
@@ -532,8 +532,8 @@ impl QuizRepository for PostgresRepository {
 
         let result = sqlx::query(
             r#"UPDATE user_papers
-               SET title = $1, quiz_ids = $2, quiz_count = $3, "updatedAt" = NOW()
-               WHERE id = $4 AND user_id = $5"#,
+               SET title = $1, quiz_ids = $2, quiz_count = $3, updated_at = NOW()
+               WHERE id = $4::uuid AND user_id = $5::uuid"#,
         )
         .bind(title)
         .bind(&quiz_ids_json)
@@ -549,8 +549,8 @@ impl QuizRepository for PostgresRepository {
         }
 
         let row = sqlx::query(
-            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, "createdAt"
-               FROM user_papers WHERE id = $1"#,
+            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, created_at
+               FROM user_papers WHERE id = $1::uuid"#,
         )
         .bind(id)
         .fetch_one(&self.pool)
@@ -562,21 +562,21 @@ impl QuizRepository for PostgresRepository {
             serde_json::from_value(quiz_ids_json_out).unwrap_or_default();
 
         Ok(UserPaper {
-            id: row.get("id"),
-            user_id: row.get("user_id"),
+            id: row.get::<uuid::Uuid, _>("id").to_string(),
+            user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
             title: row.get("title"),
             description: row.get("description"),
             quiz_ids: quiz_ids_out,
             quiz_count: row.get("quiz_count"),
             created_at: row
-                .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                .map(|t| t.to_string())
+                .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         })
     }
 
     async fn delete_user_paper(&self, id: &str, user_id: &str) -> Result<(), AppError> {
-        let result = sqlx::query("DELETE FROM user_papers WHERE id = $1 AND user_id = $2")
+        let result = sqlx::query("DELETE FROM user_papers WHERE id = $1::uuid AND user_id = $2::uuid")
             .bind(id)
             .bind(user_id)
             .execute(&self.pool)
@@ -587,6 +587,150 @@ impl QuizRepository for PostgresRepository {
             return Err(AppError::NotFound("Paper not found or access denied".to_string()));
         }
         Ok(())
+    }
+
+    // Paper practice records
+    async fn create_paper_record(
+        &self,
+        user_id: &str,
+        paper_id: &str,
+        total_questions: i32,
+    ) -> Result<PaperRecord, AppError> {
+        let id = uuid::Uuid::new_v4();
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
+        let row = sqlx::query(
+            r#"INSERT INTO paper_records (id, user_id, paper_id, total_questions, status)
+               VALUES ($1, $2, $3, $4, 'in_progress')
+               RETURNING id, user_id, paper_id, score, total_questions, correct_count, status, started_at, completed_at, created_at"#,
+        )
+        .bind(id)
+        .bind(user_uuid)
+        .bind(paper_id)
+        .bind(total_questions)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(row_to_paper_record(&row))
+    }
+
+    async fn get_paper_records(
+        &self,
+        user_id: &str,
+        paper_id: &str,
+    ) -> Result<Vec<PaperRecord>, AppError> {
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+        let rows = sqlx::query(
+            r#"SELECT id, user_id, paper_id, score, total_questions, correct_count, status, started_at, completed_at, created_at
+               FROM paper_records WHERE user_id = $1 AND paper_id = $2
+               ORDER BY created_at DESC"#,
+        )
+        .bind(user_uuid)
+        .bind(paper_id)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(rows.iter().map(row_to_paper_record).collect())
+    }
+
+    async fn get_paper_record_by_id(
+        &self,
+        id: &str,
+    ) -> Result<Option<PaperRecord>, AppError> {
+        let record_uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| AppError::Internal(format!("Invalid record id: {}", e)))?;
+        let row = sqlx::query(
+            r#"SELECT id, user_id, paper_id, score, total_questions, correct_count, status, started_at, completed_at, created_at
+               FROM paper_records WHERE id = $1"#,
+        )
+        .bind(record_uuid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(row.map(|r| row_to_paper_record(&r)))
+    }
+
+    async fn update_paper_record(
+        &self,
+        id: &str,
+        correct_count: i32,
+        score: f64,
+        status: &str,
+    ) -> Result<PaperRecord, AppError> {
+        let record_uuid = uuid::Uuid::parse_str(id)
+            .map_err(|e| AppError::Internal(format!("Invalid record id: {}", e)))?;
+        let row = sqlx::query(
+            r#"UPDATE paper_records
+               SET correct_count = $1, score = $2, status = $3,
+                   completed_at = CASE WHEN $3 = 'completed' THEN NOW() ELSE completed_at END
+               WHERE id = $4
+               RETURNING id, user_id, paper_id, score, total_questions, correct_count, status, started_at, completed_at, created_at"#,
+        )
+        .bind(correct_count)
+        .bind(score)
+        .bind(status)
+        .bind(record_uuid)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(row_to_paper_record(&row))
+    }
+
+    async fn create_paper_answer(
+        &self,
+        paper_record_id: &str,
+        quiz_id: &str,
+        user_answer: Option<&str>,
+        is_correct: bool,
+        time_spent_seconds: i32,
+        order_index: i32,
+    ) -> Result<PaperAnswer, AppError> {
+        let id = uuid::Uuid::new_v4();
+        let record_uuid = uuid::Uuid::parse_str(paper_record_id)
+            .map_err(|e| AppError::Internal(format!("Invalid paper_record_id: {}", e)))?;
+
+        let row = sqlx::query(
+            r#"INSERT INTO paper_answers (id, paper_record_id, quiz_id, user_answer, is_correct, time_spent_seconds, order_index)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING id, paper_record_id, quiz_id, user_answer, is_correct, time_spent_seconds, order_index, created_at"#,
+        )
+        .bind(id)
+        .bind(record_uuid)
+        .bind(quiz_id)
+        .bind(user_answer)
+        .bind(is_correct)
+        .bind(time_spent_seconds)
+        .bind(order_index)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(row_to_paper_answer(&row))
+    }
+
+    async fn get_paper_answers(
+        &self,
+        paper_record_id: &str,
+    ) -> Result<Vec<PaperAnswer>, AppError> {
+        let record_uuid = uuid::Uuid::parse_str(paper_record_id)
+            .map_err(|e| AppError::Internal(format!("Invalid paper_record_id: {}", e)))?;
+        let rows = sqlx::query(
+            r#"SELECT id, paper_record_id, quiz_id, user_answer, is_correct, time_spent_seconds, order_index, created_at
+               FROM paper_answers WHERE paper_record_id = $1
+               ORDER BY order_index"#,
+        )
+        .bind(record_uuid)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        Ok(rows.iter().map(row_to_paper_answer).collect())
     }
 
     // Practice records
@@ -637,8 +781,8 @@ impl QuizRepository for PostgresRepository {
             is_correct: row.get("is_correct"),
             time_spent_seconds: row.get("time_spent_seconds"),
             created_at: row
-                .try_get::<chrono::NaiveDateTime, _>("created_at")
-                .map(|t| t.to_string())
+                .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         })
     }
@@ -657,11 +801,11 @@ impl QuizRepository for PostgresRepository {
         // Fetch daily aggregates
         let rows = sqlx::query(
             r#"SELECT
-                DATE(pr.created_at) AS date,
+                DATE(pr.created_at)::text AS date,
                 COUNT(*) AS total_count,
                 COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count,
-                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy,
-                ROUND(AVG(pr.time_spent_seconds)::numeric, 1) AS avg_time_seconds
+                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1)::double precision AS accuracy,
+                ROUND(AVG(pr.time_spent_seconds)::numeric, 1)::double precision AS avg_time_seconds
             FROM practice_records pr
             JOIN "Quiz" q ON pr.quiz_id = q.id
             WHERE pr.user_id = $1
@@ -680,7 +824,7 @@ impl QuizRepository for PostgresRepository {
         // Fetch per-class breakdown for each date
         let class_rows = sqlx::query(
             r#"SELECT
-                DATE(pr.created_at) AS date,
+                DATE(pr.created_at)::text AS date,
                 q.class AS quiz_class,
                 COUNT(*) AS count,
                 COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count
@@ -739,8 +883,8 @@ impl QuizRepository for PostgresRepository {
                 q.class AS quiz_class,
                 COUNT(*) AS total_count,
                 COUNT(*) FILTER (WHERE pr.is_correct) AS correct_count,
-                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS accuracy,
-                ROUND(AVG(pr.time_spent_seconds)::numeric, 1) AS avg_time_seconds
+                ROUND(COUNT(*) FILTER (WHERE pr.is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1)::double precision AS accuracy,
+                ROUND(AVG(pr.time_spent_seconds)::numeric, 1)::double precision AS avg_time_seconds
             FROM practice_records pr
             JOIN "Quiz" q ON pr.quiz_id = q.id
             WHERE pr.user_id = $1
@@ -847,8 +991,8 @@ impl QuizRepository for PostgresRepository {
             r#"SELECT
                 COUNT(*) AS total_practiced,
                 COUNT(*) FILTER (WHERE is_correct) AS total_correct,
-                ROUND(COUNT(*) FILTER (WHERE is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1) AS overall_accuracy,
-                ROUND(AVG(time_spent_seconds)::numeric, 1) AS avg_time_seconds,
+                ROUND(COUNT(*) FILTER (WHERE is_correct)::numeric / NULLIF(COUNT(*), 0) * 100, 1)::double precision AS overall_accuracy,
+                ROUND(AVG(time_spent_seconds)::numeric, 1)::double precision AS avg_time_seconds,
                 COUNT(DISTINCT DATE(created_at)) AS total_days_practiced
             FROM practice_records
             WHERE user_id = $1
@@ -891,7 +1035,7 @@ impl QuizRepository for PostgresRepository {
 
         let rows = sqlx::query(
             r#"SELECT
-                DATE(created_at) AS date,
+                DATE(created_at)::text AS date,
                 COUNT(*) AS count,
                 COUNT(*) FILTER (WHERE is_correct) AS correct_count
             FROM practice_records
@@ -921,18 +1065,20 @@ impl QuizRepository for PostgresRepository {
         user_id: &str,
         limit: i32,
     ) -> Result<Vec<PracticeRecord>, AppError> {
+        let user_uuid = uuid::Uuid::parse_str(user_id)
+            .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
+
         let rows = sqlx::query(
-            r#"SELECT id, user_id, quiz_id, user_answer, is_correct, time_spent_seconds, "createdAt"
+            r#"SELECT id, user_id, quiz_id, user_answer, is_correct, time_spent_seconds, created_at
                FROM practice_records WHERE user_id = $1
-               ORDER BY "createdAt" DESC LIMIT $2"#,
+               ORDER BY created_at DESC LIMIT $2"#,
         )
-        .bind(user_id)
+        .bind(user_uuid)
         .bind(limit)
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        // Since practice_records doesn't store quiz_type and quiz_class, we need to join with quiz table
         let quiz_ids: Vec<String> = rows.iter().map(|r| r.get("quiz_id")).collect();
         let quiz_type_map = self.get_quiz_types_map(&quiz_ids).await?;
 
@@ -944,17 +1090,17 @@ impl QuizRepository for PostgresRepository {
                     .cloned()
                     .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
                 PracticeRecord {
-                    id: row.get("id"),
-                    user_id: row.get("user_id"),
-                    quiz_id: quiz_id,
+                    id: row.get::<uuid::Uuid, _>("id").to_string(),
+                    user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
+                    quiz_id,
                     quiz_type,
                     quiz_class,
                     user_answer: row.get("user_answer"),
                     is_correct: row.get("is_correct"),
                     time_spent_seconds: row.get("time_spent_seconds"),
                     created_at: row
-                        .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                        .map(|t| t.to_string())
+                        .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                        .map(|t| t.to_rfc3339())
                         .unwrap_or_default(),
                 }
             })
@@ -993,7 +1139,7 @@ impl QuizRepository for PostgresRepository {
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let top_level_ids: Vec<String> = rows.iter().map(|r| r.get::<String, _>("id")).collect();
+        let top_level_ids: Vec<String> = rows.iter().map(|r| r.get::<uuid::Uuid, _>("id").to_string()).collect();
 
         let mut replies_map: std::collections::HashMap<String, Vec<DiscussionCommentWithAuthor>> =
             std::collections::HashMap::new();
@@ -1023,7 +1169,7 @@ impl QuizRepository for PostgresRepository {
                 .map_err(|e| AppError::Internal(e.to_string()))?;
 
             for row in &reply_rows {
-                let parent_id: String = row.get("parent_id");
+                let parent_id: String = row.get::<uuid::Uuid, _>("parent_id").to_string();
                 let author = row_to_comment_with_author(row);
                 replies_map.entry(parent_id).or_default().push(author);
             }
@@ -1032,7 +1178,7 @@ impl QuizRepository for PostgresRepository {
         let results = rows
             .iter()
             .map(|row| {
-                let id: String = row.get("id");
+                let id: String = row.get::<uuid::Uuid, _>("id").to_string();
                 let comment = row_to_comment_with_author(row);
                 let comment_replies = replies_map.remove(&id).unwrap_or_default();
                 DiscussionCommentWithReplies {
@@ -1054,6 +1200,11 @@ impl QuizRepository for PostgresRepository {
     ) -> Result<DiscussionCommentWithAuthor, AppError> {
         let id = uuid::Uuid::new_v4();
 
+        let parent_uuid: Option<uuid::Uuid> = parent_id
+            .map(|p| uuid::Uuid::parse_str(p))
+            .transpose()
+            .map_err(|e| AppError::BadRequest(format!("Invalid parent_id: {}", e)))?;
+
         sqlx::query(
             r#"INSERT INTO discussion_comments (id, quiz_id, user_id, parent_id, content)
                VALUES ($1, $2, $3::uuid, $4, $5)"#,
@@ -1061,7 +1212,7 @@ impl QuizRepository for PostgresRepository {
         .bind(&id)
         .bind(quiz_id)
         .bind(user_id)
-        .bind(parent_id)
+        .bind(parent_uuid)
         .bind(content)
         .execute(&self.pool)
         .await
@@ -1087,10 +1238,12 @@ impl QuizRepository for PostgresRepository {
         comment_id: &str,
         user_id: &str,
     ) -> Result<(), AppError> {
+        let comment_uuid = uuid::Uuid::parse_str(comment_id)
+            .map_err(|e| AppError::BadRequest(format!("Invalid comment_id: {}", e)))?;
         let result = sqlx::query(
             "DELETE FROM discussion_comments WHERE id = $1 AND user_id = $2::uuid",
         )
-        .bind(comment_id)
+        .bind(&comment_uuid)
         .bind(user_id)
         .execute(&self.pool)
         .await
@@ -1148,7 +1301,7 @@ impl PostgresRepository {
             .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
 
         let rows = sqlx::query(
-            r#"SELECT DISTINCT DATE(created_at) AS practice_date
+            r#"SELECT DISTINCT DATE(created_at)::text AS practice_date
             FROM practice_records
             WHERE user_id = $1
             ORDER BY practice_date DESC"#,
@@ -1164,7 +1317,10 @@ impl PostgresRepository {
 
         let dates: Vec<chrono::NaiveDate> = rows
             .iter()
-            .filter_map(|r| r.get::<Option<chrono::NaiveDate>, _>("practice_date"))
+            .filter_map(|r| {
+                let s: Option<String> = r.get("practice_date");
+                s.and_then(|v| chrono::NaiveDate::parse_from_str(&v, "%Y-%m-%d").ok())
+            })
             .collect();
 
         if dates.is_empty() {
@@ -1221,12 +1377,12 @@ impl PostgresRepository {
 
 fn row_to_comment_with_author(row: &sqlx::postgres::PgRow) -> DiscussionCommentWithAuthor {
     DiscussionCommentWithAuthor {
-        id: row.get("id"),
+        id: row.get::<uuid::Uuid, _>("id").to_string(),
         quiz_id: row.get("quiz_id"),
-        user_id: row.get("user_id"),
+        user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
         username: row.get("username"),
         avatar_url: row.get("avatar_url"),
-        parent_id: row.get("parent_id"),
+        parent_id: row.get::<Option<uuid::Uuid>, _>("parent_id").map(|u| u.to_string()),
         content: row.get("content"),
         created_at: row
             .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
@@ -1236,6 +1392,34 @@ fn row_to_comment_with_author(row: &sqlx::postgres::PgRow) -> DiscussionCommentW
             .try_get::<chrono::DateTime<chrono::Utc>, _>("updated_at")
             .map(|t| t.to_rfc3339())
             .unwrap_or_default(),
+    }
+}
+
+fn row_to_paper_record(row: &sqlx::postgres::PgRow) -> PaperRecord {
+    PaperRecord {
+        id: row.get::<uuid::Uuid, _>("id").to_string(),
+        user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
+        paper_id: row.get("paper_id"),
+        score: row.get("score"),
+        total_questions: row.get("total_questions"),
+        correct_count: row.get("correct_count"),
+        status: row.get("status"),
+        started_at: row.try_get::<chrono::NaiveDateTime, _>("started_at").ok().map(|t| t.to_string()),
+        completed_at: row.try_get::<chrono::NaiveDateTime, _>("completed_at").ok().map(|t| t.to_string()),
+        created_at: row.try_get::<chrono::NaiveDateTime, _>("created_at").map(|t| t.to_string()).unwrap_or_default(),
+    }
+}
+
+fn row_to_paper_answer(row: &sqlx::postgres::PgRow) -> PaperAnswer {
+    PaperAnswer {
+        id: row.get::<uuid::Uuid, _>("id").to_string(),
+        paper_record_id: row.get::<uuid::Uuid, _>("paper_record_id").to_string(),
+        quiz_id: row.get("quiz_id"),
+        user_answer: row.get("user_answer"),
+        is_correct: row.get("is_correct"),
+        time_spent_seconds: row.get("time_spent_seconds"),
+        order_index: row.get("order_index"),
+        created_at: row.try_get::<chrono::NaiveDateTime, _>("created_at").map(|t| t.to_string()).unwrap_or_default(),
     }
 }
 
@@ -1251,11 +1435,11 @@ fn row_to_quiz(row: &sqlx::postgres::PgRow) -> Quiz {
         source: row.get("source"),
         extracted_year: row.get("extractedYear"),
         processed_at: row
-            .get::<Option<chrono::NaiveDateTime>, _>("processedAt")
-            .map(|t| t.to_string()),
+            .get::<Option<chrono::DateTime<chrono::Utc>>, _>("processedAt")
+            .map(|t| t.to_rfc3339()),
         created_at: row
-            .try_get::<chrono::NaiveDateTime, _>("createdAt")
-            .map(|t| t.to_string())
+            .try_get::<chrono::DateTime<chrono::Utc>, _>("createdAt")
+            .map(|t| t.to_rfc3339())
             .unwrap_or_default(),
     }
 }
@@ -1278,11 +1462,11 @@ fn row_to_quiz_with_details(row: &sqlx::postgres::PgRow) -> QuizWithDetails {
         source: row.get("source"),
         extracted_year: row.get("extractedYear"),
         processed_at: row
-            .get::<Option<chrono::NaiveDateTime>, _>("processedAt")
-            .map(|t| t.to_string()),
+            .get::<Option<chrono::DateTime<chrono::Utc>>, _>("processedAt")
+            .map(|t| t.to_rfc3339()),
         created_at: row
-            .try_get::<chrono::NaiveDateTime, _>("createdAt")
-            .map(|t| t.to_string())
+            .try_get::<chrono::DateTime<chrono::Utc>, _>("createdAt")
+            .map(|t| t.to_rfc3339())
             .unwrap_or_default(),
     };
 
@@ -1432,8 +1616,8 @@ async fn query_tags(pool: &PgPool, quiz_id: &str) -> Result<Vec<QuizTag>, AppErr
             value: row.get("value"),
             tag_type: row.get("type"),
             created_at: row
-                .try_get::<chrono::NaiveDateTime, _>("createdAt")
-                .map(|t| t.to_string())
+                .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
+                .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
         })
         .collect())

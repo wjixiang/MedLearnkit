@@ -116,12 +116,12 @@ export function SubjectPieChart({ data }: SubjectPieChartProps) {
   }, [data]);
 
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div className="rounded-xl border bg-card p-3 sm:p-4">
       <h3 className="mb-3 text-sm font-semibold">科目练习分布</h3>
       <ReactECharts
         echarts={echarts}
         option={option}
-        style={{ height: 350 }}
+        style={{ height: 300 }}
         notMerge
       />
     </div>

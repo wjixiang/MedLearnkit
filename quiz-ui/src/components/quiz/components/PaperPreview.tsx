@@ -48,7 +48,7 @@ export function PaperPreview({ onPracticeStart, onBack }: PaperPreviewProps) {
     if (state.selectedQuizzes.length === 0) return;
     setSaving(true);
     try {
-      const paper = await quizApi.createPaper(
+      const paper = await quizApi.createMyPaper(
         paperTitle,
         state.selectedQuizzes.map((q) => q.id),
       );

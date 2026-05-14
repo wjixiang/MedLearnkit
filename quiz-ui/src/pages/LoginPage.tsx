@@ -33,9 +33,9 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 p-4 sm:p-8">
       <div className="w-full max-w-md">
-        <div className="rounded-lg border bg-white p-6 shadow-sm">
+        <div className="rounded-lg border bg-white p-5 sm:p-6 shadow-sm">
           <h1 className="mb-2 text-2xl font-bold">Login to your account</h1>
           <p className="mb-6 text-gray-500">
             Enter your email below to login to your account

@@ -142,6 +142,30 @@ export interface CreatePracticeRecordRequest {
   time_spent_seconds: number;
 }
 
+export interface PaperRecord {
+  id: string;
+  user_id: string;
+  paper_id: string;
+  score: number | null;
+  total_questions: number;
+  correct_count: number;
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface PaperAnswer {
+  id: string;
+  paper_record_id: string;
+  quiz_id: string;
+  user_answer: string | null;
+  is_correct: boolean;
+  time_spent_seconds: number;
+  order_index: number;
+  created_at: string;
+}
+
 export interface User {
   id: string;
   email: string;
