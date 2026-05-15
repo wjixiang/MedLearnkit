@@ -31,7 +31,7 @@ pub trait QuizRepository: Send + Sync {
     // User papers (private, only visible to owner)
     async fn get_user_papers(&self, user_id: &str) -> Result<Vec<UserPaper>, AppError>;
     async fn create_user_paper(&self, user_id: &str, title: &str, quiz_ids: &[String]) -> Result<UserPaper, AppError>;
-    async fn update_user_paper(&self, id: &str, user_id: &str, title: &str, quiz_ids: &[String]) -> Result<UserPaper, AppError>;
+    async fn update_user_paper(&self, id: &str, user_id: &str, title: Option<&str>, description: Option<&str>, quiz_ids: Option<&[String]>) -> Result<UserPaper, AppError>;
     async fn delete_user_paper(&self, id: &str, user_id: &str) -> Result<(), AppError>;
 
     // Practice records

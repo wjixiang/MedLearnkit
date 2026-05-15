@@ -3,6 +3,8 @@ mod config;
 mod db;
 mod error;
 mod handlers;
+mod logging;
+mod metrics;
 mod openapi;
 mod repository;
 mod services;
@@ -17,14 +19,20 @@ use axum::{
     Router,
 };
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::trace::{self, TraceLayer};
+use tracing::Level;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::auth::admin_middleware::admin_auth;
 use crate::auth::handlers::{get_profile, login, register, update_profile};
 use crate::auth::middleware::jwt_auth;
 use crate::config::Config;
 use crate::db::pool::create_postgres_pool;
-use crate::handlers::{discussion, paper, paper_record, practice, quiz, stats, tag};
+use crate::handlers::{admin, discussion, paper, paper_record, practice, quiz, stats, tag};
+use crate::metrics::MetricsCollector;
+use crate::metrics::flush;
+use crate::metrics::middleware::metrics_middleware;
 use crate::openapi::ApiDoc;
 use crate::repository::postgres::PostgresRepository;
 use crate::state::AppState;
@@ -32,7 +40,7 @@ use crate::state::AppState;
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    tracing_subscriber::fmt::init();
+    let _log_guard = logging::init();
 
     let config = Config::default();
 
@@ -40,17 +48,46 @@ async fn main() {
         .await
         .expect("Failed to create PostgreSQL pool");
 
+    // Run pending migrations
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
+
     let state = AppState {
         quiz_repo: Arc::new(PostgresRepository::new(pool.clone())),
-        auth_repo: Arc::new(crate::auth::PostgresAuthRepository::new(pool)),
+        auth_repo: Arc::new(crate::auth::PostgresAuthRepository::new(pool.clone())),
         jwt_secret: config.jwt.secret,
+        pool: pool.clone(),
+        metrics: Arc::new(MetricsCollector::new()),
+        started_at: chrono::Utc::now(),
     };
 
+    // Spawn background tasks for metrics
+    flush::spawn_metrics_flush(state.clone(), pool.clone());
+    flush::spawn_daily_aggregation(pool.clone());
+    flush::spawn_metrics_cleanup(pool);
+
     tracing::info!(
-        "Starting server on {}:{}",
-        config.server.host,
-        config.server.port
+        host = %config.server.host,
+        port = %config.server.port,
+        "Starting quiz-server"
     );
+
+    // Admin routes with JWT + admin auth
+    let admin_routes = Router::new()
+        .route("/dashboard", get(admin::get_dashboard))
+        .route("/metrics/realtime", get(admin::get_realtime_metrics))
+        .route("/metrics/requests", get(admin::get_request_metrics))
+        .route("/users/stats", get(admin::get_user_stats))
+        .route("/users", get(admin::get_users))
+        .route("/content/stats", get(admin::get_content_stats))
+        .route("/system/health", get(admin::get_system_health))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            admin_auth,
+        ))
+        .layer(middleware::from_fn(jwt_auth));
 
     let app = Router::new()
         // Swagger UI
@@ -163,6 +200,19 @@ async fn main() {
         .route(
             "/api/practices/stats/calendar",
             get(stats::get_calendar.layer(middleware::from_fn(jwt_auth))),
+        )
+        // Admin endpoints
+        .nest("/api/admin", admin_routes)
+        // Global middleware layers
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            metrics_middleware,
+        ))
+        .route_layer(
+            TraceLayer::new_for_http()
+                .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))
+                .on_request(trace::DefaultOnRequest::new().level(Level::INFO))
+                .on_response(trace::DefaultOnResponse::new().level(Level::INFO)),
         )
         .route_layer(
             CorsLayer::new()

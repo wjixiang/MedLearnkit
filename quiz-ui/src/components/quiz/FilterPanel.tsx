@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronRight, X, Filter } from "lucide-react";
 import type { QuizFilterMeta, QuizFilter } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
@@ -19,34 +19,6 @@ export function FilterPanel({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set(["types", "sources"]),
   );
-
-  // Group units by class
-  const classUnitMap = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    // Initialize with all classes
-    meta.classes.forEach((cls) => {
-      map[cls] = [];
-    });
-    // Group units by their class prefix
-    meta.units.forEach((unit) => {
-      let matched = false;
-      for (const cls of meta.classes) {
-        if (unit.startsWith(cls) || unit.includes(cls)) {
-          map[cls].push(unit);
-          matched = true;
-          break;
-        }
-      }
-      // If no class matched, try to extract class from unit name
-      if (!matched) {
-        // Try first class as fallback
-        if (meta.classes.length > 0) {
-          map[meta.classes[0]].push(unit);
-        }
-      }
-    });
-    return map;
-  }, [meta.classes, meta.units]);
 
   const toggleCollapse = (key: string) => {
     setCollapsedGroups((prev) => {
@@ -186,7 +158,7 @@ export function FilterPanel({
                 <div className="space-y-0.5 max-h-48 overflow-y-auto">
                   {meta.classes.map((cls) => {
                     const isSelected = filter.classes === cls;
-                    const hasUnits = (classUnitMap[cls] || []).length > 0;
+                    const hasUnits = (meta.units[cls] || []).length > 0;
                     return (
                       <div key={cls}>
                         <button
@@ -219,7 +191,7 @@ export function FilterPanel({
                             >
                               全部章节
                             </button>
-                            {classUnitMap[cls].map((unit) => {
+                            {meta.units[cls]?.map((unit) => {
                               const isUnitSelected = filter.units === unit;
                               return (
                                 <button

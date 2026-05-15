@@ -27,13 +27,29 @@ export function useQuizLogic({
 }: UseQuizLogicProps) {
   const isXType = quiz.type === "X";
   const restoredAnswer = initialState?.userAnswer;
+
+  const isXTypeAnswerCorrect = useCallback((userAns: string): boolean => {
+    const answerStr = quiz.answer || "";
+    const correctOids = answerStr.split("").filter((c): c is Oid => "ABCDE".includes(c));
+    const userOids = userAns.split("").filter((c): c is Oid => "ABCDE".includes(c));
+    const sortedUser = [...userOids].sort();
+    const sortedCorrect = [...correctOids].sort();
+    return sortedUser.length === sortedCorrect.length &&
+      sortedUser.every((v, i) => v === sortedCorrect[i]);
+  }, [quiz.answer]);
+
   const [selected, setSelected] = useState<Oid[]>(
     isXType
-      ? (restoredAnswer ? (restoredAnswer.split("") as Oid[]) : [])
+      ? (restoredAnswer ? (restoredAnswer.split("").filter((c): c is Oid => "ABCDE".includes(c))) : [])
       : (restoredAnswer ? [restoredAnswer as Oid] : (quiz.userAnswer ? [quiz.userAnswer as Oid] : [])),
   );
   const [submitted, setSubmitted] = useState(initialState?.submitted ?? false);
-  const [isCorrect, setIsCorrect] = useState(initialState?.isCorrect ?? false);
+  const [isCorrect, setIsCorrect] = useState(() => {
+    if (initialState?.submitted && isXType && restoredAnswer) {
+      return isXTypeAnswerCorrect(restoredAnswer);
+    }
+    return initialState?.isCorrect ?? false;
+  });
   const [subAnswers, setSubAnswers] = useState<Record<number, Oid>>(
     quiz.subAnswers ?? {},
   );
@@ -91,7 +107,7 @@ export function useQuizLogic({
       } else if (isXType) {
         if (selected.length === 0) return;
         const answerStr = quiz.answer || "";
-        const answerArray = answerStr.split("").filter(Boolean) as Oid[];
+        const answerArray = answerStr.split("").filter((c): c is Oid => "ABCDE".includes(c));
         const sortedSelected = [...selected].sort();
         const sortedAnswer = [...answerArray].sort();
         const correct =
@@ -127,10 +143,7 @@ export function useQuizLogic({
   // Call onSubmit callback when answer is submitted (skip for restored state)
   const isRestoredRef = useRef(initialState?.submitted ?? false);
   useEffect(() => {
-    if (isRestoredRef.current) {
-      isRestoredRef.current = false;
-      return;
-    }
+    if (isRestoredRef.current) return;
     if (submitted && onSubmit) {
       const timeSpentSeconds = startTime
         ? Math.round((Date.now() - startTime) / 1000)
@@ -138,7 +151,7 @@ export function useQuizLogic({
 
       let userAnswer: string | null = null;
       if (isXType) {
-        userAnswer = selected.sort().join("");
+        userAnswer = [...selected].sort().join("");
       } else if (selected.length > 0) {
         userAnswer = selected[0];
       }
@@ -161,6 +174,7 @@ export function useQuizLogic({
     setSubAnswers({});
     setCurrentSubIndex(0);
     shuffledOptionsRef.current = null;
+    isRestoredRef.current = false;
   }, [isXType]);
 
   return {

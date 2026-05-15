@@ -28,6 +28,7 @@ pub async fn register(
 
     let existing = state.auth_repo.get_user_by_email(&req.email).await?;
     if existing.is_some() {
+        tracing::warn!(email = %req.email, "Registration failed: email already registered");
         return Err(AppError::Conflict("Email already registered".to_string()));
     }
 
@@ -41,6 +42,8 @@ pub async fn register(
         .create_auth_method(&user.id, "email", None, Some(&password_hash))
         .await?;
 
+    tracing::info!(user_id = %user.id, email = %user.email, "User registered successfully");
+
     let token = crate::auth::jwt::create_token(&user.id, &state.jwt_secret)?;
 
     Ok(Json(AuthResponse {
@@ -50,6 +53,7 @@ pub async fn register(
             email: user.email,
             username: user.username,
             avatar_url: user.avatar_url,
+            is_admin: user.is_admin,
             created_at: user.created_at,
         },
     }))
@@ -71,11 +75,18 @@ pub async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     let auth_method = state.auth_repo.get_auth_method_by_email(&req.email).await?;
-    let auth_method = auth_method.ok_or(AppError::InvalidCredentials)?;
+    let auth_method = auth_method.ok_or_else(|| {
+        tracing::warn!(email = %req.email, "Login failed: email not found");
+        AppError::InvalidCredentials
+    })?;
 
-    let password_hash = auth_method.password_hash.ok_or(AppError::InvalidCredentials)?;
+    let password_hash = auth_method.password_hash.ok_or_else(|| {
+        tracing::warn!(email = %req.email, "Login failed: no password set");
+        AppError::InvalidCredentials
+    })?;
     let valid = crate::auth::password::verify_password(&req.password, &password_hash)?;
     if !valid {
+        tracing::warn!(email = %req.email, "Login failed: wrong password");
         return Err(AppError::InvalidCredentials);
     }
 
@@ -84,6 +95,8 @@ pub async fn login(
         .get_user_by_id(&auth_method.user_id)
         .await?
         .ok_or(AppError::Internal("User not found".to_string()))?;
+
+    tracing::info!(user_id = %user.id, email = %user.email, "User logged in successfully");
 
     let token = crate::auth::jwt::create_token(&user.id, &state.jwt_secret)?;
 
@@ -94,6 +107,7 @@ pub async fn login(
             email: user.email,
             username: user.username,
             avatar_url: user.avatar_url,
+            is_admin: user.is_admin,
             created_at: user.created_at,
         },
     }))
@@ -127,6 +141,7 @@ pub async fn get_profile(
         email: user.email,
         username: user.username,
         avatar_url: user.avatar_url,
+        is_admin: user.is_admin,
         created_at: user.created_at,
     }))
 }
@@ -160,6 +175,7 @@ pub async fn update_profile(
         email: user.email,
         username: user.username,
         avatar_url: user.avatar_url,
+        is_admin: user.is_admin,
         created_at: user.created_at,
     }))
 }

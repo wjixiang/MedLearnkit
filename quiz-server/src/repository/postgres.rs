@@ -206,12 +206,22 @@ impl QuizRepository for PostgresRepository {
             .await
             .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        let units = sqlx::query_scalar::<_, String>(
-            "SELECT DISTINCT unit FROM \"Quiz\" ORDER BY unit LIMIT 50",
+        let unit_rows = sqlx::query(
+            "SELECT DISTINCT class, unit FROM \"Quiz\" ORDER BY class, unit",
         )
         .fetch_all(&self.pool)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
+
+        let mut units: std::collections::BTreeMap<String, Vec<String>> =
+            classes.iter().map(|c| (c.clone(), Vec::new())).collect();
+        for row in &unit_rows {
+            let class: String = row.get("class");
+            let unit: String = row.get("unit");
+            if let Some(list) = units.get_mut(&class) {
+                list.push(unit);
+            }
+        }
 
         Ok(FilterMeta {
             types,
@@ -524,51 +534,60 @@ impl QuizRepository for PostgresRepository {
         &self,
         id: &str,
         user_id: &str,
-        title: &str,
-        quiz_ids: &[String],
+        title: Option<&str>,
+        description: Option<&str>,
+        quiz_ids: Option<&[String]>,
     ) -> Result<UserPaper, AppError> {
-        let quiz_ids_json = serde_json::to_value(quiz_ids).unwrap_or(serde_json::Value::Array(vec![]));
-        let quiz_count = quiz_ids.len() as i32;
-
-        let result = sqlx::query(
-            r#"UPDATE user_papers
-               SET title = $1, quiz_ids = $2, quiz_count = $3, updated_at = NOW()
-               WHERE id = $4::uuid AND user_id = $5::uuid"#,
+        // Fetch existing paper first to merge partial updates
+        let existing = sqlx::query(
+            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, created_at
+               FROM user_papers WHERE id = $1::uuid AND user_id = $2::uuid"#,
         )
-        .bind(title)
-        .bind(&quiz_ids_json)
-        .bind(quiz_count)
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?
+        .ok_or_else(|| AppError::NotFound("Paper not found or access denied".to_string()))?;
+
+        let existing_ids_json: serde_json::Value = existing.get("quiz_ids");
+        let existing_ids: Vec<String> = serde_json::from_value(existing_ids_json).unwrap_or_default();
+
+        let final_title = match title {
+            Some(t) => t.to_string(),
+            None => existing.get::<String, _>("title"),
+        };
+        let final_description: Option<String> = match description {
+            Some(d) => Some(d.to_string()),
+            None => existing.get::<Option<String>, _>("description"),
+        };
+        let final_ids = quiz_ids.map(|ids| ids.to_vec()).unwrap_or(existing_ids);
+        let final_count = final_ids.len() as i32;
+        let final_ids_json = serde_json::to_value(&final_ids).unwrap_or(serde_json::Value::Array(vec![]));
+
+        sqlx::query(
+            r#"UPDATE user_papers
+               SET title = $1, description = $2, quiz_ids = $3, quiz_count = $4, updated_at = NOW()
+               WHERE id = $5::uuid AND user_id = $6::uuid"#,
+        )
+        .bind(&final_title)
+        .bind(&final_description)
+        .bind(&final_ids_json)
+        .bind(final_count)
         .bind(id)
         .bind(user_id)
         .execute(&self.pool)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
-        if result.rows_affected() == 0 {
-            return Err(AppError::NotFound("Paper not found or access denied".to_string()));
-        }
-
-        let row = sqlx::query(
-            r#"SELECT id, user_id, title, description, quiz_ids, quiz_count, created_at
-               FROM user_papers WHERE id = $1::uuid"#,
-        )
-        .bind(id)
-        .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))?;
-
-        let quiz_ids_json_out: serde_json::Value = row.get("quiz_ids");
-        let quiz_ids_out: Vec<String> =
-            serde_json::from_value(quiz_ids_json_out).unwrap_or_default();
-
         Ok(UserPaper {
-            id: row.get::<uuid::Uuid, _>("id").to_string(),
-            user_id: row.get::<uuid::Uuid, _>("user_id").to_string(),
-            title: row.get("title"),
-            description: row.get("description"),
-            quiz_ids: quiz_ids_out,
-            quiz_count: row.get("quiz_count"),
-            created_at: row
+            id: existing.get::<uuid::Uuid, _>("id").to_string(),
+            user_id: existing.get::<uuid::Uuid, _>("user_id").to_string(),
+            title: final_title.to_string(),
+            description: final_description.map(|s| s.to_string()),
+            quiz_ids: final_ids,
+            quiz_count: final_count,
+            created_at: existing
                 .try_get::<chrono::DateTime<chrono::Utc>, _>("created_at")
                 .map(|t| t.to_rfc3339())
                 .unwrap_or_default(),
@@ -624,9 +643,13 @@ impl QuizRepository for PostgresRepository {
         let user_uuid = uuid::Uuid::parse_str(user_id)
             .map_err(|e| AppError::Internal(format!("Invalid user_id: {}", e)))?;
         let rows = sqlx::query(
-            r#"SELECT id, user_id, paper_id, score, total_questions, correct_count, status, started_at, completed_at, created_at
-               FROM paper_records WHERE user_id = $1 AND paper_id = $2
-               ORDER BY created_at DESC"#,
+            r#"SELECT pr.id, pr.user_id, pr.paper_id, pr.score, pr.total_questions, pr.correct_count, pr.status, pr.started_at, pr.completed_at, pr.created_at,
+                      COALESCE(pa.answered_count, 0) AS answered_count
+               FROM paper_records pr
+               LEFT JOIN (SELECT paper_record_id, COUNT(*) AS answered_count FROM paper_answers GROUP BY paper_record_id) pa
+               ON pa.paper_record_id = pr.id
+               WHERE pr.user_id = $1 AND pr.paper_id = $2
+               ORDER BY pr.created_at DESC"#,
         )
         .bind(user_uuid)
         .bind(paper_id)
@@ -1403,6 +1426,7 @@ fn row_to_paper_record(row: &sqlx::postgres::PgRow) -> PaperRecord {
         score: row.get("score"),
         total_questions: row.get("total_questions"),
         correct_count: row.get("correct_count"),
+        answered_count: row.try_get("answered_count").unwrap_or(0),
         status: row.get("status"),
         started_at: row.try_get::<chrono::NaiveDateTime, _>("started_at").ok().map(|t| t.to_string()),
         completed_at: row.try_get::<chrono::NaiveDateTime, _>("completed_at").ok().map(|t| t.to_string()),
@@ -1435,11 +1459,11 @@ fn row_to_quiz(row: &sqlx::postgres::PgRow) -> Quiz {
         source: row.get("source"),
         extracted_year: row.get("extractedYear"),
         processed_at: row
-            .get::<Option<chrono::DateTime<chrono::Utc>>, _>("processedAt")
-            .map(|t| t.to_rfc3339()),
+            .get::<Option<chrono::NaiveDateTime>, _>("processedAt")
+            .map(|t| t.and_utc().to_rfc3339()),
         created_at: row
-            .try_get::<chrono::DateTime<chrono::Utc>, _>("createdAt")
-            .map(|t| t.to_rfc3339())
+            .try_get::<chrono::NaiveDateTime, _>("createdAt")
+            .map(|t| t.and_utc().to_rfc3339())
             .unwrap_or_default(),
     }
 }
@@ -1462,11 +1486,11 @@ fn row_to_quiz_with_details(row: &sqlx::postgres::PgRow) -> QuizWithDetails {
         source: row.get("source"),
         extracted_year: row.get("extractedYear"),
         processed_at: row
-            .get::<Option<chrono::DateTime<chrono::Utc>>, _>("processedAt")
-            .map(|t| t.to_rfc3339()),
+            .get::<Option<chrono::NaiveDateTime>, _>("processedAt")
+            .map(|t| t.and_utc().to_rfc3339()),
         created_at: row
-            .try_get::<chrono::DateTime<chrono::Utc>, _>("createdAt")
-            .map(|t| t.to_rfc3339())
+            .try_get::<chrono::NaiveDateTime, _>("createdAt")
+            .map(|t| t.and_utc().to_rfc3339())
             .unwrap_or_default(),
     };
 

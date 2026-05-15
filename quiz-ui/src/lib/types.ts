@@ -38,7 +38,7 @@ export interface Quiz {
   unit: string;
   question: string | null;
   main_question: string | null;
-  answer: Oid | null;
+  answer: string | null;
   source: string | null;
   extracted_year: number | null;
   processed_at: string | null;
@@ -61,7 +61,7 @@ export type QuizPractice = QuizWithDetails & {
 export interface QuizFilterMeta {
   types: string[];
   classes: string[];
-  units: string[];
+  units: Record<string, string[]>;
   sources: string[];
   years: number[];
 }
@@ -149,6 +149,7 @@ export interface PaperRecord {
   score: number | null;
   total_questions: number;
   correct_count: number;
+  answered_count: number;
   status: string;
   started_at: string | null;
   completed_at: string | null;
@@ -171,6 +172,7 @@ export interface User {
   email: string;
   username: string | null;
   avatar_url: string | null;
+  is_admin: boolean;
   created_at: string;
 }
 
@@ -278,4 +280,99 @@ export interface CommentsListResponse {
 export interface CreateCommentRequest {
   content: string;
   parent_id?: string;
+}
+
+// Admin types
+
+export interface SystemHealthSnapshot {
+  uptime_seconds: number;
+  started_at: string;
+  total_requests: number;
+  total_errors: number;
+  avg_response_ms_today: number;
+}
+
+export interface EndpointMetricEntry {
+  endpoint: string;
+  method: string;
+  request_count: number;
+  avg_duration_ms: number;
+  error_count: number;
+}
+
+export interface RealtimeMetrics {
+  requests_per_minute: number;
+  error_rate_percent: number;
+  endpoints: EndpointMetricEntry[];
+}
+
+export interface DailyCount {
+  date: string;
+  count: number;
+}
+
+export interface UserStatsSnapshot {
+  total_users: number;
+  new_users_today: number;
+  new_users_this_week: number;
+  new_users_this_month: number;
+  dau: number;
+  wau: number;
+  mau: number;
+  user_growth: DailyCount[];
+}
+
+export interface ContentStatsSnapshot {
+  total_quizzes: number;
+  quizzes_practiced_today: number;
+  quizzes_practiced_this_week: number;
+  total_papers: number;
+  papers_created_today: number;
+  total_public_papers: number;
+  total_discussions: number;
+  discussions_today: number;
+  practice_trend: DailyCount[];
+}
+
+export interface AdminDashboardResponse {
+  system: SystemHealthSnapshot;
+  realtime: RealtimeMetrics;
+  user_stats: UserStatsSnapshot;
+  content_stats: ContentStatsSnapshot;
+}
+
+export interface RequestMetricBucket {
+  bucket_time: string;
+  endpoint: string;
+  method: string;
+  request_count: number;
+  avg_duration_ms: number;
+  error_count: number;
+}
+
+export interface RequestMetricsResponse {
+  metrics: RequestMetricBucket[];
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  username: string | null;
+  is_admin: boolean;
+  created_at: string;
+  last_active_at: string | null;
+  total_practices: number;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUserItem[];
+  total: number;
+}
+
+export interface SystemHealthResponse {
+  status: string;
+  uptime_seconds: number;
+  version: string;
+  database_connected: boolean;
+  started_at: string;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { QuizPractice, QuizOption } from "@/lib/types";
@@ -35,7 +35,7 @@ export function Quiz({
 }: QuizProps) {
   const [startTime] = useState(() => Date.now());
 
-  const handlePracticeRecord = async (result: {
+  const handlePracticeRecord = useCallback(async (result: {
     quizId: string;
     quizType: string;
     quizClass: string;
@@ -58,7 +58,7 @@ export function Quiz({
     if (onPaperAnswer) {
       onPaperAnswer(result);
     }
-  };
+  }, [onPaperAnswer]);
 
   const {
     selected,
@@ -409,7 +409,7 @@ export function Quiz({
             ? selected.includes(opt.oid)
             : selected[0] === opt.oid;
           const isCorrectAnswer = isXType
-            ? (quiz.answer?.split("").filter(Boolean) || []).includes(opt.oid)
+            ? (quiz.answer || "").split("").filter((c) => "ABCDE".includes(c)).includes(opt.oid)
             : quiz.answer === opt.oid;
 
           return (

@@ -32,6 +32,7 @@ pub struct UserResponse {
     pub email: String,
     pub username: Option<String>,
     pub avatar_url: Option<String>,
+    pub is_admin: bool,
     pub created_at: String,
 }
 
@@ -41,6 +42,7 @@ pub struct User {
     pub email: String,
     pub username: Option<String>,
     pub avatar_url: Option<String>,
+    pub is_admin: bool,
     pub created_at: String,
 }
 

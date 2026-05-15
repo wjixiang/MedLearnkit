@@ -23,4 +23,6 @@ pub trait AuthRepository: Send + Sync {
         password_hash: Option<&str>,
     ) -> Result<String, AppError>;
     async fn get_auth_method_by_email(&self, email: &str) -> Result<Option<AuthMethod>, AppError>;
+
+    async fn is_user_admin(&self, id: &str) -> Result<bool, AppError>;
 }

@@ -1,3 +1,4 @@
+pub mod admin_middleware;
 pub mod handlers;
 pub mod jwt;
 pub mod middleware;

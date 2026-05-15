@@ -7,6 +7,7 @@ import { SettingsLayout } from "@/pages/SettingsLayout";
 import { ProfileSettingsPage } from "@/pages/ProfileSettingsPage";
 import { AccountManagementPage } from "@/pages/AccountManagementPage";
 import { StatsPage } from "@/pages/StatsPage";
+import { AdminPage } from "@/pages/AdminPage";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   ChatSidebarProvider,
@@ -83,6 +84,9 @@ export function App() {
           }
         />
         <Route path="/stats" element={<StatsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/users" element={<AdminPage />} />
+        <Route path="/admin/metrics" element={<AdminPage />} />
         <Route path="/settings" element={<SettingsLayout />}>
           <Route index element={<Navigate to="/settings/profile" replace />} />
           <Route path="profile" element={<ProfileSettingsPage />} />

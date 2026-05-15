@@ -26,6 +26,9 @@ pub enum AppError {
     #[error("Conflict: {0}")]
     Conflict(String),
 
+    #[error("Forbidden")]
+    Forbidden,
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
@@ -34,21 +37,38 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self {
             AppError::Database(e) => {
-                tracing::error!("Database error: {:?}", e);
+                tracing::error!(error = %e, "Database error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Database error".to_string(),
                 )
             }
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
+            AppError::NotFound(msg) => {
+                tracing::debug!(reason = %msg, "Resource not found");
+                (StatusCode::NOT_FOUND, msg.clone())
+            }
+            AppError::BadRequest(msg) => {
+                tracing::debug!(reason = %msg, "Bad request");
+                (StatusCode::BAD_REQUEST, msg.clone())
+            }
+            AppError::Unauthorized => {
+                tracing::debug!("Unauthorized access attempt");
+                (StatusCode::UNAUTHORIZED, "Unauthorized".to_string())
+            }
             AppError::InvalidCredentials => {
+                tracing::debug!("Invalid credentials");
                 (StatusCode::UNAUTHORIZED, "Invalid credentials".to_string())
             }
-            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg.clone()),
+            AppError::Conflict(msg) => {
+                tracing::debug!(reason = %msg, "Conflict");
+                (StatusCode::CONFLICT, msg.clone())
+            }
+            AppError::Forbidden => {
+                tracing::debug!("Forbidden access attempt");
+                (StatusCode::FORBIDDEN, "Forbidden".to_string())
+            }
             AppError::Internal(msg) => {
-                tracing::error!("Internal error: {}", msg);
+                tracing::error!(reason = %msg, "Internal server error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),

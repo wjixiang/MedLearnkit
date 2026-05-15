@@ -24,8 +24,9 @@ pub struct CreateUserPaperRequest {
 
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct UpdateUserPaperRequest {
-    pub title: String,
-    pub quiz_ids: Vec<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub quiz_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -294,7 +295,7 @@ pub async fn update_my_paper(
 ) -> Result<Json<UserPaperResponse>, AppError> {
     let paper = state
         .quiz_repo
-        .update_user_paper(&id, &user_id, &payload.title, &payload.quiz_ids)
+        .update_user_paper(&id, &user_id, payload.title.as_deref(), payload.description.as_deref(), payload.quiz_ids.as_deref())
         .await?;
     Ok(Json(UserPaperResponse::from(paper)))
 }

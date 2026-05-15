@@ -6,6 +6,12 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Grid, CheckCircle, XCircle, ArrowLeft } from "lucide-react";
 import { quizApi } from "@/lib/api";
 import { useQuizPaper } from "./contexts/QuizPaperContext";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 
 interface QuizPaperProps {
   quizzes: SelectedQuiz[];
@@ -31,6 +37,33 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
   const [restoring, setRestoring] = useState(true);
   const restoredAnswersRef = useRef<Map<string, PaperAnswer>>(new Map());
 
+  // Carousel API
+  const [api, setApi] = useState<CarouselApi>();
+  const [canScrollPrev, setCanScrollPrev] = useState(false);
+  const [canScrollNext, setCanScrollNext] = useState(false);
+
+  // Lazy mounting window: only mount Quiz for current and adjacent slides
+  const visibleIndices = useMemo(() => {
+    const indices = new Set<number>();
+    indices.add(currentIndex);
+    if (currentIndex > 0) indices.add(currentIndex - 1);
+    if (currentIndex < quizSet.length - 1) indices.add(currentIndex + 1);
+    return indices;
+  }, [currentIndex, quizSet.length]);
+
+  // Sync carousel state with component state
+  useEffect(() => {
+    if (!api) return;
+    const update = () => {
+      setCanScrollPrev(api.canScrollPrev());
+      setCanScrollNext(api.canScrollNext());
+      setCurrentIndex(api.selectedScrollSnap());
+    };
+    update();
+    api.on("select", update);
+    return () => { api.off("select", update); };
+  }, [api]);
+
   // On mount: try to resume an existing in_progress paper_record
   useEffect(() => {
     if (!paperId || quizSet.length === 0) return;
@@ -38,18 +71,12 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
 
     async function restoreOrInit() {
       try {
-        // Fetch existing records for this paper
         const records = await quizApi.getPaperRecords(paperId!);
         const inProgress = records.find((r) => r.status === "in_progress");
 
         if (inProgress) {
-          // Resume existing session
           paperRecordIdRef.current = inProgress.id;
-
-          // Load saved answers
           const answers = await quizApi.getPaperAnswers(inProgress.id);
-
-          // Restore quiz states from saved answers
           const restoredMap = new Map<string, QuizState>();
           const answerMap = new Map<string, PaperAnswer>();
           for (const ans of answers) {
@@ -65,7 +92,6 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
             setUpdateTrigger((prev) => prev + 1);
           }
         } else {
-          // No in-progress record — create a new one
           const record = await quizApi.createPaperRecord(paperId!, quizSet.length);
           if (!cancelled) {
             paperRecordIdRef.current = record.id;
@@ -73,7 +99,6 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
         }
       } catch (err) {
         console.error("Failed to restore paper progress:", err);
-        // Fallback: create a new record
         try {
           const record = await quizApi.createPaperRecord(paperId!, quizSet.length);
           if (!cancelled) {
@@ -96,7 +121,6 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       quizStateMapRef.current.set(quizId, state);
       setUpdateTrigger((prev) => prev + 1);
 
-      // Check if all questions are now answered — if so, complete the paper record
       const newMap = new Map(quizStateMapRef.current);
       newMap.set(quizId, state);
       const allAnswered = quizSet.every((q) => newMap.get(q.id)?.submitted);
@@ -128,7 +152,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
         paper_record_id: recordId,
         quiz_id: result.quizId,
         user_answer: result.userAnswer,
-        is_correct: result.isCorrect,
+        is_correct: result.is_correct,
         time_spent_seconds: result.timeSpentSeconds,
         order_index: orderIndex,
       }).catch((err) => console.error("Failed to save paper answer:", err));
@@ -193,17 +217,11 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
     setView("grid");
   }, []);
 
-  const back = useCallback(() => {
-    setCurrentIndex((prev) => Math.max(0, prev - 1));
-  }, []);
-
-  const forward = useCallback(() => {
-    setCurrentIndex((prev) => Math.min(quizSet.length - 1, prev + 1));
-  }, [quizSet.length]);
-
+  // Global keyboard navigation (supplements Carousel's built-in focus-based handling)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (view !== "practice") return;
+      if (e.defaultPrevented) return;
       if (
         e.target instanceof HTMLElement &&
         (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
@@ -212,15 +230,15 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       }
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        back();
+        api?.scrollPrev();
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        forward();
+        api?.scrollNext();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [view, back, forward]);
+  }, [view, api]);
 
   if (quizSet.length === 0) {
     return (
@@ -343,8 +361,8 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
           <Button
             variant="outline"
             size="icon"
-            onClick={back}
-            disabled={currentIndex <= 0}
+            onClick={() => api?.scrollPrev()}
+            disabled={!canScrollPrev}
             className="h-8 w-8"
           >
             <ChevronLeft className="h-4 w-4" />
@@ -352,8 +370,8 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
           <Button
             variant="outline"
             size="icon"
-            onClick={forward}
-            disabled={currentIndex >= quizSet.length - 1}
+            onClick={() => api?.scrollNext()}
+            disabled={!canScrollNext}
             className="h-8 w-8"
           >
             <ChevronRight className="h-4 w-4" />
@@ -361,24 +379,37 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <Quiz
-          key={quizSet[currentIndex].id}
-          quiz={quizSet[currentIndex]}
-          currentQuizIndex={currentIndex}
-          thisQuizIndex={currentIndex}
-          onStateChange={registerQuizState}
-          onPaperAnswer={handlePaperAnswer}
-          initialState={
-            restoredAnswersRef.current.has(quizSet[currentIndex].id)
-              ? (() => {
-                  const ans = restoredAnswersRef.current.get(quizSet[currentIndex].id)!;
-                  return { submitted: true, isCorrect: ans.is_correct, userAnswer: ans.user_answer };
-                })()
-              : undefined
-          }
-        />
-      </div>
+      <Carousel
+        opts={{ startIndex: currentIndex }}
+        setApi={setApi}
+        className="flex-1 min-h-0"
+      >
+        <CarouselContent className="-ml-0 h-full">
+          {quizSet.map((quiz, index) => (
+            <CarouselItem key={quiz.id} className="pl-0">
+              {visibleIndices.has(index) ? (
+                <div className="h-full overflow-y-auto">
+                  <Quiz
+                    quiz={quiz}
+                    currentQuizIndex={currentIndex}
+                    thisQuizIndex={index}
+                    onStateChange={registerQuizState}
+                    onPaperAnswer={handlePaperAnswer}
+                    initialState={
+                      restoredAnswersRef.current.has(quiz.id)
+                        ? (() => {
+                            const ans = restoredAnswersRef.current.get(quiz.id)!;
+                            return { submitted: true, isCorrect: ans.is_correct, userAnswer: ans.user_answer };
+                          })()
+                        : undefined
+                    }
+                  />
+                </div>
+              ) : null}
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+      </Carousel>
     </div>
   );
 }

@@ -23,6 +23,13 @@ import type {
   DiscussionComment,
   CommentsListResponse,
   CreateCommentRequest,
+  AdminDashboardResponse,
+  RealtimeMetrics,
+  RequestMetricsResponse,
+  UserStatsSnapshot,
+  AdminUsersResponse,
+  ContentStatsSnapshot,
+  SystemHealthResponse,
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://192.168.123.98:8888";
@@ -194,10 +201,10 @@ export const quizApi = {
     });
   },
 
-  updateMyPaper: (id: string, title: string, quizIds: string[]) => {
+  updateMyPaper: (id: string, data: { title?: string; description?: string; quiz_ids?: string[] }) => {
     return fetchApi<UserPaper>(`/api/papers/my/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ title, quiz_ids: quizIds }),
+      body: JSON.stringify(data),
     });
   },
 
@@ -369,6 +376,40 @@ export const authApi = {
 };
 
 const RAG_BASE = import.meta.env.VITE_RAG_API_URL || "http://localhost:8000";
+
+export const adminApi = {
+  getDashboard: () => {
+    return fetchApi<AdminDashboardResponse>("/api/admin/dashboard");
+  },
+
+  getRealtimeMetrics: () => {
+    return fetchApi<RealtimeMetrics>("/api/admin/metrics/realtime");
+  },
+
+  getRequestMetrics: (days = 7, endpoint?: string) => {
+    return fetchApi<RequestMetricsResponse>("/api/admin/metrics/requests", {
+      params: { days, endpoint },
+    });
+  },
+
+  getUserStats: () => {
+    return fetchApi<UserStatsSnapshot>("/api/admin/users/stats");
+  },
+
+  getUsers: (page = 1, limit = 20, search?: string) => {
+    return fetchApi<AdminUsersResponse>("/api/admin/users", {
+      params: { page, limit, search },
+    });
+  },
+
+  getContentStats: () => {
+    return fetchApi<ContentStatsSnapshot>("/api/admin/content/stats");
+  },
+
+  getSystemHealth: () => {
+    return fetchApi<SystemHealthResponse>("/api/admin/system/health");
+  },
+};
 
 export const notebookApi = {
   listNotebooks: () => {

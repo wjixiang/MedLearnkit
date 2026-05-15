@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
@@ -66,7 +67,7 @@ pub struct QuizWithDetails {
 pub struct QuizFilterMeta {
     pub types: Vec<String>,
     pub classes: Vec<String>,
-    pub units: Vec<String>,
+    pub units: BTreeMap<String, Vec<String>>,
     pub sources: Vec<String>,
     pub years: Vec<i32>,
 }
@@ -187,6 +188,7 @@ pub struct PaperRecord {
     pub score: Option<f64>,
     pub total_questions: i32,
     pub correct_count: i32,
+    pub answered_count: i32,
     pub status: String,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,

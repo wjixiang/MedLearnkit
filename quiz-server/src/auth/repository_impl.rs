@@ -23,7 +23,7 @@ impl AuthRepository for PostgresAuthRepository {
             r#"
             INSERT INTO users (id, email, username)
             VALUES ($1, $2, $3)
-            RETURNING id, email, username, avatar_url, created_at
+            RETURNING id, email, username, avatar_url, is_admin, created_at
             "#,
         )
         .bind(id)
@@ -37,6 +37,7 @@ impl AuthRepository for PostgresAuthRepository {
             email: row.get("email"),
             username: row.get("username"),
             avatar_url: row.get("avatar_url"),
+            is_admin: row.get("is_admin"),
             created_at: row.get::<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>, _>("created_at").to_rfc3339(),
         })
     }
@@ -45,7 +46,7 @@ impl AuthRepository for PostgresAuthRepository {
         let uuid_id: uuid::Uuid = id.parse().map_err(|_| AppError::BadRequest("Invalid UUID".to_string()))?;
         let row = sqlx::query(
             r#"
-            SELECT id, email, username, avatar_url, created_at
+            SELECT id, email, username, avatar_url, is_admin, created_at
             FROM users WHERE id = $1
             "#,
         )
@@ -58,6 +59,7 @@ impl AuthRepository for PostgresAuthRepository {
             email: r.get("email"),
             username: r.get("username"),
             avatar_url: r.get("avatar_url"),
+            is_admin: r.get("is_admin"),
             created_at: r.get::<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>, _>("created_at").to_rfc3339(),
         }))
     }
@@ -65,7 +67,7 @@ impl AuthRepository for PostgresAuthRepository {
     async fn get_user_by_email(&self, email: &str) -> Result<Option<User>, AppError> {
         let row = sqlx::query(
             r#"
-            SELECT id, email, username, avatar_url, created_at
+            SELECT id, email, username, avatar_url, is_admin, created_at
             FROM users WHERE email = $1
             "#,
         )
@@ -78,6 +80,7 @@ impl AuthRepository for PostgresAuthRepository {
             email: r.get("email"),
             username: r.get("username"),
             avatar_url: r.get("avatar_url"),
+            is_admin: r.get("is_admin"),
             created_at: r.get::<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>, _>("created_at").to_rfc3339(),
         }))
     }
@@ -96,7 +99,7 @@ impl AuthRepository for PostgresAuthRepository {
                 avatar_url = COALESCE($3, avatar_url),
                 updated_at = NOW()
             WHERE id = $1
-            RETURNING id, email, username, avatar_url, created_at
+            RETURNING id, email, username, avatar_url, is_admin, created_at
             "#,
         )
         .bind(uuid_id)
@@ -110,6 +113,7 @@ impl AuthRepository for PostgresAuthRepository {
             email: row.get("email"),
             username: row.get("username"),
             avatar_url: row.get("avatar_url"),
+            is_admin: row.get("is_admin"),
             created_at: row.get::<sqlx::types::chrono::DateTime<sqlx::types::chrono::Utc>, _>("created_at").to_rfc3339(),
         })
     }
@@ -160,5 +164,18 @@ impl AuthRepository for PostgresAuthRepository {
             provider_id: r.get("provider_id"),
             password_hash: r.get("password_hash"),
         }))
+    }
+
+    async fn is_user_admin(&self, id: &str) -> Result<bool, AppError> {
+        let uuid_id: uuid::Uuid = id
+            .parse()
+            .map_err(|_| AppError::BadRequest("Invalid UUID".to_string()))?;
+        let row = sqlx::query("SELECT is_admin FROM users WHERE id = $1")
+            .bind(uuid_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row
+            .map(|r| r.get::<bool, _>("is_admin"))
+            .unwrap_or(false))
     }
 }

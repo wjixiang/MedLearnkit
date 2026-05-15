@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod discussion;
 pub mod paper;
 pub mod paper_record;

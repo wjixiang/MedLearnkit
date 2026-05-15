@@ -1,6 +1,7 @@
 use utoipa::OpenApi;
 
 use crate::auth::models::{AuthResponse, LoginRequest, RegisterRequest, UpdateProfileRequest, UserResponse};
+use crate::handlers::admin::*;
 use crate::handlers::paper::{CreatePaperRequest, PaperResponse};
 use crate::handlers::discussion::{CreateCommentRequest, CommentResponse, CommentWithRepliesResponse, CommentsListResponse};
 use crate::handlers::tag::AddTagRequest;
@@ -31,6 +32,13 @@ use crate::services::quiz_service::QuizFilter;
         crate::handlers::paper::get_papers,
         crate::handlers::paper::get_paper_by_id,
         crate::handlers::paper::delete_paper,
+        get_dashboard,
+        get_realtime_metrics,
+        get_request_metrics,
+        get_user_stats,
+        get_users,
+        get_content_stats,
+        get_system_health,
     ),
     components(
         schemas(
@@ -48,6 +56,20 @@ use crate::services::quiz_service::QuizFilter;
             CommentsListResponse,
             QuizFilter,
             FilterMeta,
+            AdminDashboardResponse,
+            SystemHealthSnapshot,
+            RealtimeMetrics,
+            EndpointMetricEntry,
+            UserStatsSnapshot,
+            ContentStatsSnapshot,
+            DailyCount,
+            RequestMetricsResponse,
+            RequestMetricBucket,
+            RequestMetricsQuery,
+            AdminUsersResponse,
+            AdminUserItem,
+            AdminUsersQuery,
+            SystemHealthResponse,
         )
     ),
     tags(
@@ -55,7 +77,8 @@ use crate::services::quiz_service::QuizFilter;
         (name = "quizzes", description = "Quiz management endpoints"),
         (name = "tags", description = "Tag management endpoints"),
         (name = "papers", description = "Paper management endpoints"),
-        (name = "discussions", description = "Discussion endpoints")
+        (name = "discussions", description = "Discussion endpoints"),
+        (name = "admin", description = "Admin management endpoints")
     ),
     info(
         title = "MedQuiz API",
