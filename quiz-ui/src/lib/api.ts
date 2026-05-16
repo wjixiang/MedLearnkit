@@ -32,7 +32,7 @@ import type {
   SystemHealthResponse,
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://192.168.123.98:8888";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const TOKEN_KEY = "auth_token";
 const USER_KEY = "auth_user";

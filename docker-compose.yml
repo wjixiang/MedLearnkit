@@ -29,10 +29,10 @@ services:
       - app
 
   quiz-ui:
-    image: rpi-isjkczwpadlvr9i3.cn-hongkong.personal.cr.aliyuncs.com/medquiz/quiz-ui:latest
+    image: crpi-isjkczwpadlvr9i3.cn-hongkong.personal.cr.aliyuncs.com/medquiz/quiz-ui:latest
     restart: always
     ports:
-      - "3000:5173"
+      - "3000:80"
     depends_on:
       - quiz-server
     networks:
