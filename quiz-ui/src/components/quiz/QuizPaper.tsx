@@ -42,26 +42,51 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
-  // Lazy mounting window: only mount Quiz for current and adjacent slides
-  const visibleIndices = useMemo(() => {
-    const indices = new Set<number>();
-    indices.add(currentIndex);
-    if (currentIndex > 0) indices.add(currentIndex - 1);
-    if (currentIndex < quizSet.length - 1) indices.add(currentIndex + 1);
-    return indices;
-  }, [currentIndex, quizSet.length]);
+  // Fixed start index for carousel opts — must NOT change during carousel lifetime,
+  // otherwise embla-carousel-react calls reInit() which kills the snap animation.
+  const carouselStartRef = useRef(0);
 
-  // Sync carousel state with component state
+  // settledIndex: the index after snap animation completes.
+  // -1 means no carousel has settled yet (use currentIndex as fallback).
+  const [settledIndex, setSettledIndex] = useState(-1);
+
+  // Mount Quiz only for slides around the settled position.
+  // Uses settledIndex exclusively so no DOM changes happen during animation.
+  const visibleIndices = useMemo(() => {
+    const base = settledIndex >= 0 ? settledIndex : currentIndex;
+    const indices = new Set<number>();
+    if (base > 0) indices.add(base - 1);
+    indices.add(base);
+    if (base < quizSet.length - 1) indices.add(base + 1);
+    return indices;
+  }, [settledIndex, currentIndex, quizSet.length]);
+
+  // Sync carousel state: select updates UI instantly, settle updates Quiz mounting
   useEffect(() => {
     if (!api) return;
-    const update = () => {
+
+    const onSelect = () => {
       setCanScrollPrev(api.canScrollPrev());
       setCanScrollNext(api.canScrollNext());
       setCurrentIndex(api.selectedScrollSnap());
     };
-    update();
-    api.on("select", update);
-    return () => { api.off("select", update); };
+    const onSettle = () => {
+      setSettledIndex(api.selectedScrollSnap());
+    };
+
+    // Initialize on mount
+    const idx = api.selectedScrollSnap();
+    setCurrentIndex(idx);
+    setSettledIndex(idx);
+    setCanScrollPrev(api.canScrollPrev());
+    setCanScrollNext(api.canScrollNext());
+
+    api.on("select", onSelect);
+    api.on("settle", onSettle);
+    return () => {
+      api.off("select", onSelect);
+      api.off("settle", onSettle);
+    };
   }, [api]);
 
   // On mount: try to resume an existing in_progress paper_record
@@ -210,6 +235,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
 
   const handleSelectQuiz = (originalIndex: number) => {
     setCurrentIndex(originalIndex);
+    carouselStartRef.current = originalIndex;
     setView("practice");
   };
 
@@ -380,7 +406,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       </div>
 
       <Carousel
-        opts={{ startIndex: currentIndex }}
+        opts={{ startIndex: carouselStartRef.current }}
         setApi={setApi}
         className="flex-1 min-h-0"
       >

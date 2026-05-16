@@ -26,28 +26,28 @@ export function LoginPage() {
       await login(email, password);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "登录失败，请重试");
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 p-4 sm:p-8">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-muted p-4 sm:p-8">
       <div className="w-full max-w-md">
-        <div className="rounded-lg border bg-white p-5 sm:p-6 shadow-sm">
-          <h1 className="mb-2 text-2xl font-bold">Login to your account</h1>
-          <p className="mb-6 text-gray-500">
-            Enter your email below to login to your account
+        <div className="rounded-lg border border-border bg-card p-5 sm:p-6 shadow-sm">
+          <h1 className="mb-2 text-2xl font-bold text-foreground">登录账号</h1>
+          <p className="mb-6 text-muted-foreground">
+            请输入邮箱和密码以登录您的账号
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Field>
-              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <FieldLabel htmlFor="email">邮箱</FieldLabel>
               <Input
                 id="email"
                 type="email"
-                placeholder="m@example.com"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -57,12 +57,12 @@ export function LoginPage() {
 
             <Field>
               <div className="flex items-center justify-between">
-                <FieldLabel htmlFor="password">Password</FieldLabel>
+                <FieldLabel htmlFor="password">密码</FieldLabel>
                 <a
                   href="#"
-                  className="text-sm text-blue-600 hover:underline"
+                  className="text-sm text-primary hover:underline"
                 >
-                  Forgot your password?
+                  忘记密码？
                 </a>
               </div>
               <Input
@@ -76,19 +76,19 @@ export function LoginPage() {
             </Field>
 
             {error && (
-              <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
                 {error}
               </div>
             )}
 
             <Field>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? "登录中..." : "登录"}
               </Button>
               <FieldDescription className="text-center">
-                Don't have an account?{" "}
-                <Link to="/signup" className="text-blue-600 hover:underline">
-                  Sign up
+                还没有账号？{" "}
+                <Link to="/signup" className="text-primary hover:underline">
+                  立即注册
                 </Link>
               </FieldDescription>
             </Field>

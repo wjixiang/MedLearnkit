@@ -20,3 +20,4 @@ quiz-server/target/
 
 # MedQuiz (separate repo)
 MedQuiz/
+.env
