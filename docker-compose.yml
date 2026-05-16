@@ -32,7 +32,7 @@ services:
     image: crpi-isjkczwpadlvr9i3.cn-hongkong.personal.cr.aliyuncs.com/medquiz/quiz-ui:latest
     restart: always
     ports:
-      - "3000:80"
+      - "80:80"
     depends_on:
       - quiz-server
     networks:
