@@ -28,14 +28,13 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
   const paperId = paperState.currentPaper?.id;
   const [view, setView] = useState<"grid" | "practice">("grid");
   const [currentIndex, setCurrentIndex] = useState(0);
-  const quizStateMapRef = useRef<Map<string, QuizState>>(new Map());
-  const [updateTrigger, setUpdateTrigger] = useState(0);
+  const [quizStateMap, setQuizStateMap] = useState<Map<string, QuizState>>(new Map());
   const paperRecordIdRef = useRef<string | null>(null);
   const orderIndexRef = useRef<Map<string, number>>(
     new Map(quizSet.map((q, i) => [q.id, i]))
   );
   const [restoring, setRestoring] = useState(true);
-  const restoredAnswersRef = useRef<Map<string, PaperAnswer>>(new Map());
+  const [restoredAnswers, setRestoredAnswers] = useState<Map<string, PaperAnswer>>(new Map());
 
   // Carousel API
   const [api, setApi] = useState<CarouselApi>();
@@ -44,7 +43,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
 
   // Fixed start index for carousel opts — must NOT change during carousel lifetime,
   // otherwise embla-carousel-react calls reInit() which kills the snap animation.
-  const carouselStartRef = useRef(0);
+  const [carouselStart, setCarouselStart] = useState(0);
 
   // settledIndex: the index after snap animation completes.
   // -1 means no carousel has settled yet (use currentIndex as fallback).
@@ -74,12 +73,14 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       setSettledIndex(api.selectedScrollSnap());
     };
 
-    // Initialize on mount
-    const idx = api.selectedScrollSnap();
-    setCurrentIndex(idx);
-    setSettledIndex(idx);
-    setCanScrollPrev(api.canScrollPrev());
-    setCanScrollNext(api.canScrollNext());
+    // Initialize on mount — defer to avoid synchronous setState in effect
+    requestAnimationFrame(() => {
+      const idx = api.selectedScrollSnap();
+      setCurrentIndex(idx);
+      setSettledIndex(idx);
+      setCanScrollPrev(api.canScrollPrev());
+      setCanScrollNext(api.canScrollNext());
+    });
 
     api.on("select", onSelect);
     api.on("settle", onSettle);
@@ -112,9 +113,8 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
             answerMap.set(ans.quiz_id, ans);
           }
           if (!cancelled) {
-            quizStateMapRef.current = restoredMap;
-            restoredAnswersRef.current = answerMap;
-            setUpdateTrigger((prev) => prev + 1);
+            setQuizStateMap(restoredMap);
+            setRestoredAnswers(answerMap);
           }
         } else {
           const record = await quizApi.createPaperRecord(paperId!, quizSet.length);
@@ -143,20 +143,20 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
 
   const registerQuizState = useCallback(
     (quizId: string, state: QuizState) => {
-      quizStateMapRef.current.set(quizId, state);
-      setUpdateTrigger((prev) => prev + 1);
-
-      const newMap = new Map(quizStateMapRef.current);
-      newMap.set(quizId, state);
-      const allAnswered = quizSet.every((q) => newMap.get(q.id)?.submitted);
-      if (allAnswered && paperRecordIdRef.current) {
-        let correct = 0;
-        newMap.forEach((s) => { if (s.isCorrect) correct++; });
-        const score = quizSet.length > 0 ? (correct / quizSet.length) * 100 : 0;
-        quizApi.updatePaperRecord(paperRecordIdRef.current, correct, score, "completed").catch(
-          (err) => console.error("Failed to complete paper record:", err)
-        );
-      }
+      setQuizStateMap((prev) => {
+        const next = new Map(prev);
+        next.set(quizId, state);
+        const allAnswered = quizSet.every((q) => next.get(q.id)?.submitted);
+        if (allAnswered && paperRecordIdRef.current) {
+          let correct = 0;
+          next.forEach((s) => { if (s.isCorrect) correct++; });
+          const score = quizSet.length > 0 ? (correct / quizSet.length) * 100 : 0;
+          quizApi.updatePaperRecord(paperRecordIdRef.current, correct, score, "completed").catch(
+            (err) => console.error("Failed to complete paper record:", err)
+          );
+        }
+        return next;
+      });
     },
     [quizSet],
   );
@@ -177,7 +177,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
         paper_record_id: recordId,
         quiz_id: result.quizId,
         user_answer: result.userAnswer,
-        is_correct: result.is_correct,
+        is_correct: result.isCorrect,
         time_spent_seconds: result.timeSpentSeconds,
         order_index: orderIndex,
       }).catch((err) => console.error("Failed to save paper answer:", err));
@@ -187,12 +187,12 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
 
   const getQuizState = useCallback(
     (quiz: QuizPractice): QuizState => {
-      return quizStateMapRef.current.get(quiz.id) ?? {
+      return quizStateMap.get(quiz.id) ?? {
         submitted: false,
         isCorrect: false,
       };
     },
-    [],
+    [quizStateMap],
   );
 
   const stats = useMemo(() => {
@@ -218,7 +218,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
           ? ((correctCount / submittedCount) * 100).toFixed(1)
           : "0",
     };
-  }, [quizSet, getQuizState, updateTrigger]);
+  }, [quizSet, getQuizState]);
 
   const [filterMode, setFilterMode] = useState<"all" | "correct" | "incorrect">(
     "all",
@@ -231,11 +231,11 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       if (!state.submitted) return false;
       return filterMode === "correct" ? state.isCorrect : !state.isCorrect;
     });
-  }, [quizSet, getQuizState, filterMode, updateTrigger]);
+  }, [quizSet, getQuizState, filterMode]);
 
   const handleSelectQuiz = (originalIndex: number) => {
     setCurrentIndex(originalIndex);
-    carouselStartRef.current = originalIndex;
+    setCarouselStart(originalIndex);
     setView("practice");
   };
 
@@ -406,7 +406,7 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
       </div>
 
       <Carousel
-        opts={{ startIndex: carouselStartRef.current }}
+        opts={{ startIndex: carouselStart }}
         setApi={setApi}
         className="flex-1 min-h-0"
       >
@@ -422,9 +422,9 @@ export function QuizPaper({ quizzes: quizSet, onBack }: QuizPaperProps) {
                     onStateChange={registerQuizState}
                     onPaperAnswer={handlePaperAnswer}
                     initialState={
-                      restoredAnswersRef.current.has(quiz.id)
+                      restoredAnswers.has(quiz.id)
                         ? (() => {
-                            const ans = restoredAnswersRef.current.get(quiz.id)!;
+                            const ans = restoredAnswers.get(quiz.id)!;
                             return { submitted: true, isCorrect: ans.is_correct, userAnswer: ans.user_answer };
                           })()
                         : undefined
